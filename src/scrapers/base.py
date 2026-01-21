@@ -1,0 +1,1 @@
+"""Module for the Base Class for All Scrapers."""

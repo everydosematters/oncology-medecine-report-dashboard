@@ -1,0 +1,1 @@
+"""Module for Web Scraping NAFDAC website."""
