@@ -1,27 +1,21 @@
 """Scraper for US FDA."""
 
-# scrapers/fda.py
 from __future__ import annotations
 
-import json
-import re
-from dataclasses import asdict
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
+from typing import Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper
 from src.models import DrugAlert
 
+from .base import BaseScraper
 from .utils import (
-    _load_source_cfg,
-    _clean_text,
-    _select_one_text,
-    _absolutize,
-    _extract_by_regex,
+    load_source_cfg,
+    clean_text,
+    select_one_text,
+    absolutize,
+    extract_by_regex,
 )
 
 
@@ -36,7 +30,7 @@ class FDAUSAScraper(BaseScraper):
     """
 
     def __init__(self, sources_path: str = "config/sources.json") -> None:
-        self.cfg = _load_source_cfg(sources_path, "FDA_US")
+        self.cfg = load_source_cfg(sources_path, "FDA_US")
         base_url = self.cfg["base_url"]
         req_args = self.cfg.get("request") or {}
         super().__init__(base_url, args=req_args)
@@ -54,30 +48,26 @@ class FDAUSAScraper(BaseScraper):
         return any(k.lower() in hay for k in keywords)
 
     def _listing_urls(self) -> List[str]:
-        listing_cfg = self.cfg.get("listing") or {}
-        pag = listing_cfg.get("pagination") or {}
+        pag = (self.cfg.get("listing") or {}).get("pagination") or {}
         base = self.cfg["base_url"]
 
         if not pag:
             return [base]
 
-        ptype = pag.get("type")
+        if pag.get("type") != "query_param":
+            return [base]
+
+        param = pag["param"]
         start = int(pag.get("start", 0))
         max_pages = int(pag.get("max_pages", 1))
 
         urls: List[str] = []
-        if ptype == "query_param":
-            param = pag["param"]
-            for p in range(start, start + max_pages):
-                sep = "&" if "?" in base else "?"
-                urls.append(f"{base}{sep}{param}={p}")
-        else:
-            urls.append(base)
+        for p in range(start, start + max_pages):
+            sep = "&" if "?" in base else "?"
+            urls.append(f"{base}{sep}{param}={p}")
         return urls
 
-    def _parse_listing_page(
-        self, html: str, listing_url: str
-    ) -> List[Tuple[str, Optional[str]]]:
+    def _parse_listing_page(self, html: str, listing_url: str) -> List[Tuple[str, Optional[str]]]:
         listing_cfg = self.cfg.get("listing") or {}
         item_sel = listing_cfg.get("item_selector")
         link_sel = listing_cfg.get("link_selector")
@@ -91,13 +81,13 @@ class FDAUSAScraper(BaseScraper):
             link_el = item.select_one(link_sel) if link_sel else None
             if not link_el or not link_el.get("href"):
                 continue
-            detail_url = _absolutize(listing_url, link_el["href"])
+            detail_url = absolutize(listing_url, link_el["href"])
 
             date_txt = None
             if date_sel:
                 date_el = item.select_one(date_sel)
                 if date_el:
-                    date_txt = _clean_text(date_el.get_text(" ", strip=True))
+                    date_txt = clean_text(date_el.get_text(" ", strip=True))
 
             out.append((detail_url, date_txt))
 
@@ -113,30 +103,23 @@ class FDAUSAScraper(BaseScraper):
 
     def _parse_detail_page(self, html: str) -> Dict[str, Optional[str]]:
         dcfg = self.cfg.get("detail_page") or {}
-
         soup = BeautifulSoup(html, "html.parser")
-        title = _select_one_text(soup, dcfg.get("title_selector", ""))
-        body = _select_one_text(soup, dcfg.get("body_selector", ""))
-        publish_date = _select_one_text(soup, dcfg.get("publish_date_selector", ""))
+
+        title = select_one_text(soup, dcfg.get("title_selector", ""))
+        body = select_one_text(soup, dcfg.get("body_selector", ""))
+        publish_date = select_one_text(soup, dcfg.get("publish_date_selector", ""))
 
         extracted: Dict[str, Optional[str]] = {}
-        fields_cfg = dcfg.get("fields") or {}
-        for field_name, rule in fields_cfg.items():
+        for field_name, rule in (dcfg.get("fields") or {}).items():
             if (rule or {}).get("strategy") == "regex":
-                extracted[field_name] = _extract_by_regex(
-                    body or "", rule.get("pattern", "")
-                )
+                extracted[field_name] = extract_by_regex(body or "", rule.get("pattern", ""))
 
-        return {
-            "title": title,
-            "body_text": body,
-            "publish_date": publish_date,
-            **extracted,
-        }
+        return {"title": title, "body_text": body, "publish_date": publish_date, **extracted}
 
     def standardize(self) -> List[DrugAlert]:
         defaults = self.cfg.get("defaults") or {}
         records: List[DrugAlert] = []
+        seen_record_ids: set[str] = set()
 
         for listing_url in self._listing_urls():
             listing_scraped = self.scrape(listing_url)
@@ -167,6 +150,11 @@ class FDAUSAScraper(BaseScraper):
                     manufacturer_stated or "",
                 )
 
+                # Deduplicate by record_id across all pages
+                if record_id in seen_record_ids:
+                    continue
+                seen_record_ids.add(record_id)
+
                 records.append(
                     DrugAlert(
                         record_id=record_id,
@@ -178,12 +166,12 @@ class FDAUSAScraper(BaseScraper):
                         publish_date=publish_date,
                         manufacturer_stated=manufacturer_stated,
                         manufactured_for=None,
-                        therapeutic_category=defaults.get("therapeutic_category"),
+                        product_name=None,
                         reason=reason,
+                        therapeutic_category=defaults.get("therapeutic_category"),
                         alert_type=defaults.get("alert_type"),
                         notes=None,
-                        body_text=body_text,
-                        scraped_at=datetime.now(timezone.utc).isoformat(),
+                        scraped_at=datetime.now(timezone.utc),
                     )
                 )
 

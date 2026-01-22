@@ -1,59 +1,22 @@
-"""Module for Web Scraping NAFDAC website."""
+"""Scraper for NAFDAC Nigeria."""
 
-# scrapers/nafdac.py
 from __future__ import annotations
 
-import json
-import re
 from datetime import datetime, timezone
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-from urllib.parse import urljoin
+from typing import Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup
 
-from .base import BaseScraper, AlertRecord
+from src.models import DrugAlert
 
-
-def _load_source_cfg(sources_path: str, source_key: str) -> Dict[str, Any]:
-    p = Path(sources_path)
-    data = json.loads(p.read_text(encoding="utf-8"))
-    if source_key not in data:
-        raise KeyError(f"Source key '{source_key}' not found in {sources_path}")
-    return data[source_key]
-
-
-def _clean_text(s: Optional[str]) -> Optional[str]:
-    if not s:
-        return None
-    s = re.sub(r"\s+", " ", s).strip()
-    return s or None
-
-
-def _select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
-    if not selector:
-        return None
-    el = soup.select_one(selector)
-    if not el:
-        return None
-    return _clean_text(el.get_text(" ", strip=True))
-
-
-def _absolutize(base_url: str, href: str) -> str:
-    return urljoin(base_url, href)
-
-
-def _extract_by_regex(body_text: str, pattern: str) -> Optional[str]:
-    if not body_text or not pattern:
-        return None
-    m = re.search(pattern, body_text, flags=re.IGNORECASE)
-    if not m:
-        return None
-    if m.lastindex:
-        val = m.group(m.lastindex)
-    else:
-        val = m.group(0)
-    return _clean_text(val)
+from .base import BaseScraper
+from .utils import (
+    load_source_cfg,
+    clean_text,
+    select_one_text,
+    absolutize,
+    extract_by_regex,
+)
 
 
 class NafDacScraper(BaseScraper):
@@ -63,13 +26,13 @@ class NafDacScraper(BaseScraper):
 
     - Inherits BaseScraper (shared fetch + sqlite upsert)
     - Reads selectors/defaults from sources.json (NAFDAC_NG key)
-    - Implements standardize() to output AlertRecord rows
+    - Implements standardize() to output DrugAlert rows
     """
 
     def __init__(self, sources_path: str = "config/sources.json") -> None:
-        self.cfg = _load_source_cfg(sources_path, "NAFDAC_NG")
+        self.cfg = load_source_cfg(sources_path, "NAFDAC_NG")
         base_url = self.cfg["base_url"]
-        req_args = (self.cfg.get("request") or {})
+        req_args = self.cfg.get("request") or {}
         super().__init__(base_url, args=req_args)
 
         self.source_id = self.cfg["source_id"]
@@ -92,21 +55,20 @@ class NafDacScraper(BaseScraper):
         if not pag:
             return [base]
 
-        ptype = pag.get("type")
+        if pag.get("type") != "path":
+            return [base]
+
+        pattern = pag["pattern"]  # e.g. "page/{page}/"
         start = int(pag.get("start", 1))
         max_pages = int(pag.get("max_pages", 1))
 
         urls: List[str] = []
-        if ptype == "path":
-            pattern = pag["pattern"]  # e.g. "page/{page}/"
-            for p in range(start, start + max_pages):
-                suffix = pattern.format(page=p)
-                if base.endswith("/"):
-                    urls.append(base + suffix)
-                else:
-                    urls.append(base + "/" + suffix)
-        else:
-            urls.append(base)
+        for p in range(start, start + max_pages):
+            suffix = pattern.format(page=p)
+            if base.endswith("/"):
+                urls.append(base + suffix)
+            else:
+                urls.append(base + "/" + suffix)
         return urls
 
     def _parse_listing_page(self, html: str, listing_url: str) -> List[Tuple[str, Optional[str]]]:
@@ -123,16 +85,17 @@ class NafDacScraper(BaseScraper):
             link_el = item.select_one(link_sel) if link_sel else None
             if not link_el or not link_el.get("href"):
                 continue
-            detail_url = _absolutize(listing_url, link_el["href"])
+            detail_url = absolutize(listing_url, link_el["href"])
 
             date_txt = None
             if date_sel:
                 date_el = item.select_one(date_sel)
                 if date_el:
-                    date_txt = _clean_text(date_el.get_text(" ", strip=True))
+                    date_txt = clean_text(date_el.get_text(" ", strip=True))
 
             out.append((detail_url, date_txt))
 
+        # de-dupe while preserving order
         seen = set()
         deduped: List[Tuple[str, Optional[str]]] = []
         for u, d in out:
@@ -144,23 +107,23 @@ class NafDacScraper(BaseScraper):
 
     def _parse_detail_page(self, html: str) -> Dict[str, Optional[str]]:
         dcfg = self.cfg.get("detail_page") or {}
-
         soup = BeautifulSoup(html, "html.parser")
-        title = _select_one_text(soup, dcfg.get("title_selector", ""))
-        body = _select_one_text(soup, dcfg.get("body_selector", ""))
-        publish_date = _select_one_text(soup, dcfg.get("publish_date_selector", ""))
+
+        title = select_one_text(soup, dcfg.get("title_selector", ""))
+        body = select_one_text(soup, dcfg.get("body_selector", ""))
+        publish_date = select_one_text(soup, dcfg.get("publish_date_selector", ""))
 
         extracted: Dict[str, Optional[str]] = {}
-        fields_cfg = dcfg.get("fields") or {}
-        for field_name, rule in fields_cfg.items():
+        for field_name, rule in (dcfg.get("fields") or {}).items():
             if (rule or {}).get("strategy") == "regex":
-                extracted[field_name] = _extract_by_regex(body or "", rule.get("pattern", ""))
+                extracted[field_name] = extract_by_regex(body or "", rule.get("pattern", ""))
 
         return {"title": title, "body_text": body, "publish_date": publish_date, **extracted}
 
-    def standardize(self) -> List[AlertRecord]:
+    def standardize(self) -> List[DrugAlert]:
         defaults = self.cfg.get("defaults") or {}
-        records: List[AlertRecord] = []
+        records: List[DrugAlert] = []
+        seen_record_ids: set[str] = set()
 
         for listing_url in self._listing_urls():
             listing_scraped = self.scrape(listing_url)
@@ -191,8 +154,13 @@ class NafDacScraper(BaseScraper):
                     manufacturer_stated or "",
                 )
 
+                # Deduplicate by record_id across all pages
+                if record_id in seen_record_ids:
+                    continue
+                seen_record_ids.add(record_id)
+
                 records.append(
-                    AlertRecord(
+                    DrugAlert(
                         record_id=record_id,
                         source_id=self.source_id,
                         source_country=self.source_country,
@@ -202,12 +170,12 @@ class NafDacScraper(BaseScraper):
                         publish_date=publish_date,
                         manufacturer_stated=manufacturer_stated,
                         manufactured_for=None,
-                        therapeutic_category=defaults.get("therapeutic_category"),
+                        product_name=None,
                         reason=reason,
+                        therapeutic_category=defaults.get("therapeutic_category"),
                         alert_type=defaults.get("alert_type"),
                         notes=None,
-                        body_text=body_text,
-                        scraped_at=datetime.now(timezone.utc).isoformat(),
+                        scraped_at=datetime.now(timezone.utc),
                     )
                 )
 

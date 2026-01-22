@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional, Sequence
 
 import requests
 from bs4 import BeautifulSoup
+
 from src.models import DrugAlert
 
 
@@ -55,8 +56,17 @@ class BaseScraper(abc.ABC):
             "Mozilla/5.0 (compatible; EDM-Dashboard/1.0; +https://everydosematters.org)",
         )
 
-    def scrape(self) -> Dict[str, Any]:
-        resp = requests.get(self.url, timeout=self.timeout, **self.args)
+    def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Fetch a URL (or self.url if url is None) and return normalized payload:
+          - final_url
+          - status_code
+          - html
+          - text (cleaned)
+          - retrieved_at
+        """
+        target = url or self.url
+        resp = requests.get(target, timeout=self.timeout, **self.args)
         resp.raise_for_status()
 
         html = resp.text
@@ -80,6 +90,7 @@ class BaseScraper(abc.ABC):
     def is_oncology_alert(self, body_text: str) -> bool:
         """
         Returns True if the text contains any oncology/cancer keywords.
+        (Base default; site scrapers can override with config keywords.)
         """
         if not body_text:
             return False
@@ -87,14 +98,13 @@ class BaseScraper(abc.ABC):
         return any(k in hay for k in self.ONCOLOGY_KEYWORDS)
 
     @abc.abstractmethod
-    def standardize(self, scraped: Dict[str, Any]) -> List[DrugAlert]:
+    def standardize(self) -> List[DrugAlert]:
         """
-        Subclasses must implement:
-          - parse scraped content
-          - return 0..N DrugAlert objects matching your schema
+        Subclasses implement:
+          - scrape listing + detail pages
+          - return 0..N DrugAlert objects matching schema
         """
         raise NotImplementedError
-
 
     @staticmethod
     def init_db(db_path: str) -> None:
@@ -107,6 +117,7 @@ class BaseScraper(abc.ABC):
                 """
                 CREATE TABLE IF NOT EXISTS oncology_alerts (
                     record_id TEXT PRIMARY KEY,
+                    source_id TEXT,
                     source_country TEXT,
                     source_org TEXT,
                     source_url TEXT NOT NULL,
@@ -125,9 +136,11 @@ class BaseScraper(abc.ABC):
                 );
                 """
             )
-            # Helpful indexes for filtering
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_publish_date ON oncology_alerts(publish_date);"
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_source_id ON oncology_alerts(source_id);"
             )
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_source_country ON oncology_alerts(source_country);"
@@ -183,21 +196,8 @@ class BaseScraper(abc.ABC):
     @staticmethod
     def make_record_id(*parts: str) -> str:
         """
-        Stable ID for de-duping/upserts. Use source+url+date+title, etc.
+        Stable ID for de-duping/upserts.
+        Use source + url + date + title (+ manufacturer) etc.
         """
         raw = "||".join([p.strip() for p in parts if p is not None])
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
-
-    def base_record_kwargs(
-        self, *, source_url: str, body_text: Optional[str]
-    ) -> Dict[str, Any]:
-        """
-        Common kwargs to include in every record.
-        """
-        return dict(
-            source_country=self.source_country,
-            source_org=self.source_org,
-            source_url=source_url,
-            body_text=body_text,
-            scraped_at=datetime.now(timezone.utc).isoformat(),
-        )
