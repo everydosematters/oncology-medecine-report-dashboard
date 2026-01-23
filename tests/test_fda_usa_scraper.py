@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import Dict, Any
+from typing import Any, Dict
 
 import pytest
 
@@ -10,7 +10,7 @@ from src.scrapers.fda_usa import FDAUSAScraper
 @pytest.fixture
 def sources_path(tmp_path: Path) -> str:
     """
-    Create a minimal sources.json for just FDA_US, matching your config shape.
+    Minimal sources.json for FDA_US using TABLE-based listing selectors.
     """
     cfg = {
         "FDA_US": {
@@ -20,25 +20,13 @@ def sources_path(tmp_path: Path) -> str:
             "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
             "request": {"headers": {"Accept-Language": "en-US,en;q=0.9"}},
             "listing": {
-                "item_selector": "div.view-content div.views-row",
-                "link_selector": "a",
-                "date_selector": "span.date-display-single",
+                # Key change: table rows
+                "item_selector": "table#datatable tbody tr",
+                # Link lives in the Brand Name column
+                "link_selector": "td:nth-child(2) a",
+                # Date column may include a <time> (often does)
+                "date_selector": "td:nth-child(1) time",
                 "pagination": {"type": "query_param", "param": "page", "start": 0, "max_pages": 5},
-            },
-            "detail_page": {
-                "title_selector": "h1",
-                "body_selector": "div.field--name-body",
-                "publish_date_selector": "time",
-                "fields": {
-                    "manufacturer_stated": {
-                        "strategy": "regex",
-                        "pattern": r"(manufacturer|company)[:\s]+(.+)",
-                    },
-                    "reason": {
-                        "strategy": "regex",
-                        "pattern": r"(reason for recall|issue|problem)[:\s]+(.+)",
-                    },
-                },
             },
             "filters": {
                 "require_oncology": True,
@@ -53,6 +41,22 @@ def sources_path(tmp_path: Path) -> str:
     return str(p)
 
 
+def _as_iso_date(val: Any) -> str:
+    """
+    Helper: normalize publish_date regardless of whether your DrugAlert model
+    stores it as str, date, or datetime.
+    """
+    if val is None:
+        return ""
+    # datetime/date objects
+    if hasattr(val, "date"):
+        try:
+            return str(val.date())
+        except Exception:
+            pass
+    return str(val)
+
+
 def test_fda_listing_urls_pagination(sources_path: str) -> None:
     scraper = FDAUSAScraper(sources_path)
     urls = scraper._listing_urls()
@@ -62,34 +66,50 @@ def test_fda_listing_urls_pagination(sources_path: str) -> None:
     assert urls[-1].endswith("?page=4")
 
 
-def test_fda_standardize_end_to_end_with_mocked_scrape(monkeypatch, sources_path: str) -> None:
+def test_fda_standardize_from_table_listing(monkeypatch, sources_path: str) -> None:
+    """
+    End-to-end sanity check using a mocked TABLE listing.
+    - Ensures selectors match the table DOM
+    - Ensures oncology filtering passes
+    - Ensures record fields are populated sensibly
+    """
     scraper = FDAUSAScraper(sources_path)
 
     listing_html = """
-    <div class="view-content">
-      <div class="views-row">
-        <a href="/detail-1">Recall Notice A</a>
-        <span class="date-display-single">2026-01-01</span>
-      </div>
-    </div>
-    """
-
-    detail_html = """
     <html>
       <body>
-        <h1>Recall Notice A</h1>
-        <time>2026-01-01</time>
-        <div class="field--name-body">
-          This is an oncology medicine recall.
-          Company: ACME Pharma
-          Reason for recall: contamination detected
-        </div>
+        <table id="datatable">
+          <thead>
+            <tr>
+              <th>Date</th><th>Brand Name</th><th>Product Description</th>
+              <th>Product Type</th><th>Recall Reason</th><th>Company Name</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><time datetime="2026-01-01">January 1, 2026</time></td>
+              <td><a href="/recalls/recall-1">OncoDrug X</a></td>
+              <td>Oncology medicine tablets, 50mg</td>
+              <td>Drugs</td>
+              <td>Potential contamination during chemotherapy supply chain</td>
+              <td>ACME Pharma</td>
+            </tr>
+          </tbody>
+        </table>
       </body>
     </html>
     """
 
+    # If your current standardize() still scrapes the detail URL too,
+    # this prevents it from failing. (We don’t rely on detail parsing here.)
+    detail_html = """
+    <html><body><h1>OncoDrug X</h1><div>Placeholder detail page</div></body></html>
+    """
+
     def fake_scrape(url: str = None) -> Dict[str, Any]:
         target = url or scraper.url
+
+        # Listing pages (with pagination)
         if "page=" in target or target == scraper.cfg["base_url"]:
             return {
                 "final_url": target,
@@ -98,12 +118,13 @@ def test_fda_standardize_end_to_end_with_mocked_scrape(monkeypatch, sources_path
                 "text": "listing page",
                 "retrieved_at": "2026-01-01T00:00:00Z",
             }
-        # detail
+
+        # Detail page (if called)
         return {
-            "final_url": "https://www.fda.gov/detail-1",
+            "final_url": "https://www.fda.gov/recalls/recall-1",
             "status_code": 200,
             "html": detail_html,
-            "text": "This is an oncology medicine recall. Company: ACME Pharma Reason for recall: contamination detected",
+            "text": "Placeholder detail page",
             "retrieved_at": "2026-01-01T00:00:01Z",
         }
 
@@ -114,23 +135,25 @@ def test_fda_standardize_end_to_end_with_mocked_scrape(monkeypatch, sources_path
     assert len(records) == 1
     r = records[0]
 
-    # defaults from config
+    # Basic identity/defaults
     assert r.source_id == "FDA_US"
     assert r.therapeutic_category == "Oncology"
     assert r.alert_type == "Recall"
 
-    # selectors / fields
-    assert r.title == "Recall Notice A"
-    assert r.publish_date is not None
-    assert str(r.publish_date.date()) == "2026-01-01"
+    # Publish date should be derived from the table date column
+    assert "2026-01-01" in _as_iso_date(r.publish_date)
 
-    # regex extractions should exist (may capture more text depending on greedy regex)
+    # Title should come from Brand Name column in the table (OncoDrug X)
+    assert r.title is not None
+    assert "OncoDrug X" in str(r.title)
+
+    # Company + reason should be populated from the table row
     assert r.manufacturer_stated is not None
-    assert "ACME" in r.manufacturer_stated
+    assert "ACME" in str(r.manufacturer_stated)
 
     assert r.reason is not None
-    assert "contamination" in r.reason.lower()
+    assert "contamination" in str(r.reason).lower()
 
-    # stable id present
+    # Record id should be stable-ish
     assert isinstance(r.record_id, str)
     assert len(r.record_id) > 10

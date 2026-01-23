@@ -12,7 +12,6 @@ from src.models import DrugAlert
 from .base import BaseScraper
 from .utils import (
     load_source_cfg,
-    clean_text,
     select_one_text,
     absolutize,
     extract_by_regex,
@@ -67,39 +66,54 @@ class FDAUSAScraper(BaseScraper):
             urls.append(f"{base}{sep}{param}={p}")
         return urls
 
-    def _parse_listing_page(self, html: str, listing_url: str) -> List[Tuple[str, Optional[str]]]:
-        listing_cfg = self.cfg.get("listing") or {}
-        item_sel = listing_cfg.get("item_selector")
-        link_sel = listing_cfg.get("link_selector")
-        date_sel = listing_cfg.get("date_selector")
-
+    def _parse_listing_page(self, html: str, listing_url: str):
         soup = BeautifulSoup(html, "html.parser")
-        items = soup.select(item_sel) if item_sel else []
+        rows = soup.select("table#datatable tbody tr")
 
-        out: List[Tuple[str, Optional[str]]] = []
-        for item in items:
-            link_el = item.select_one(link_sel) if link_sel else None
-            if not link_el or not link_el.get("href"):
+        results = []
+
+        for row in rows:
+            cols = row.select("td")
+            if len(cols) < 6:
+                continue  # skip malformed rows
+
+            # Date
+            time_el = cols[0].select_one("time")
+            date_txt = time_el["datetime"] if time_el else cols[0].get_text(strip=True)
+
+            # Brand + link
+            link_el = cols[1].select_one("a")
+            if not link_el:
                 continue
+
             detail_url = absolutize(listing_url, link_el["href"])
+            brand_name = link_el.get_text(strip=True)
 
-            date_txt = None
-            if date_sel:
-                date_el = item.select_one(date_sel)
-                if date_el:
-                    date_txt = clean_text(date_el.get_text(" ", strip=True))
+            # Product description
+            description = cols[2].get_text(strip=True)
 
-            out.append((detail_url, date_txt))
+            # Product type
+            product_type = cols[3].get_text(strip=True)
 
-        # de-dupe while preserving order
-        seen = set()
-        deduped: List[Tuple[str, Optional[str]]] = []
-        for u, d in out:
-            if u in seen:
-                continue
-            seen.add(u)
-            deduped.append((u, d))
-        return deduped
+            # Recall reason
+            recall_reason = cols[4].get_text(strip=True)
+
+            # Company
+            company = cols[5].get_text(strip=True)
+
+            results.append(
+                {
+                    "detail_url": detail_url,
+                    "publish_date": date_txt,
+                    "brand_name": brand_name,
+                    "description": description,
+                    "product_type": product_type,
+                    "reason": recall_reason,
+                    "manufacturer_stated": company,
+                }
+            )
+
+        return results
 
     def _parse_detail_page(self, html: str) -> Dict[str, Optional[str]]:
         dcfg = self.cfg.get("detail_page") or {}
@@ -112,67 +126,63 @@ class FDAUSAScraper(BaseScraper):
         extracted: Dict[str, Optional[str]] = {}
         for field_name, rule in (dcfg.get("fields") or {}).items():
             if (rule or {}).get("strategy") == "regex":
-                extracted[field_name] = extract_by_regex(body or "", rule.get("pattern", ""))
+                extracted[field_name] = extract_by_regex(
+                    body or "", rule.get("pattern", "")
+                )
 
-        return {"title": title, "body_text": body, "publish_date": publish_date, **extracted}
+        return {
+            "title": title,
+            "body_text": body,
+            "publish_date": publish_date,
+            **extracted,
+        }
 
-    def standardize(self) -> List[DrugAlert]:
-        defaults = self.cfg.get("defaults") or {}
-        records: List[DrugAlert] = []
-        seen_record_ids: set[str] = set()
+    def standardize(self):
+        defaults = self.cfg.get("defaults", {})
+        records = []
 
-        for listing_url in self._listing_urls():
-            listing_scraped = self.scrape(listing_url)
-            listing_items = self._parse_listing_page(
-                html=listing_scraped["html"],
-                listing_url=listing_scraped.get("final_url") or listing_url,
+        listing_scraped = self.scrape(self.cfg["base_url"])
+        rows = self._parse_listing_page(
+            listing_scraped["html"], listing_scraped["final_url"]
+        )
+
+        for row in rows:
+            body_text = f"{row['description']} {row['reason']} {row['product_type']}"
+
+            # Oncology filter
+            if self.cfg["filters"]["require_oncology"]:
+                keywords = self.cfg["filters"]["oncology_keywords"]
+                if not any(k.lower() in body_text.lower() for k in keywords):
+                    continue
+
+            record_id = self.make_record_id(
+                self.source_id,
+                row["detail_url"],
+                row["publish_date"],
+                row["brand_name"],
+                row["manufacturer_stated"],
             )
 
-            for detail_url, listing_date in listing_items:
-                detail_scraped = self.scrape(detail_url)
-                parsed = self._parse_detail_page(detail_scraped["html"])
 
-                body_text = parsed.get("body_text") or detail_scraped.get("text") or ""
-                if not self._is_oncology(body_text):
-                    continue
-
-                title = parsed.get("title")
-                publish_date = parsed.get("publish_date") or listing_date
-
-                manufacturer_stated = parsed.get("manufacturer_stated")
-                reason = parsed.get("reason")
-
-                record_id = self.make_record_id(
-                    self.source_id,
-                    detail_scraped.get("final_url") or detail_url,
-                    title or "",
-                    publish_date or "",
-                    manufacturer_stated or "",
+            records.append(
+                DrugAlert(
+                    record_id=record_id,
+                    source_id=self.source_id,
+                    source_country=self.source_country,
+                    source_org=self.source_org,
+                    source_url=row["detail_url"],
+                    title=row["brand_name"],
+                    product_name=row["brand_name"],  
+                    publish_date=row["publish_date"],
+                    manufacturer_stated=row["manufacturer_stated"],
+                    manufactured_for=None,
+                    therapeutic_category=defaults.get("therapeutic_category"),
+                    reason=row["reason"],
+                    alert_type=defaults.get("alert_type"),
+                    notes=row["description"],
+                    scraped_at=datetime.now(timezone.utc), 
                 )
+            )
 
-                # Deduplicate by record_id across all pages
-                if record_id in seen_record_ids:
-                    continue
-                seen_record_ids.add(record_id)
-
-                records.append(
-                    DrugAlert(
-                        record_id=record_id,
-                        source_id=self.source_id,
-                        source_country=self.source_country,
-                        source_org=self.source_org,
-                        source_url=detail_scraped.get("final_url") or detail_url,
-                        title=title,
-                        publish_date=publish_date,
-                        manufacturer_stated=manufacturer_stated,
-                        manufactured_for=None,
-                        product_name=None,
-                        reason=reason,
-                        therapeutic_category=defaults.get("therapeutic_category"),
-                        alert_type=defaults.get("alert_type"),
-                        notes=None,
-                        scraped_at=datetime.now(timezone.utc),
-                    )
-                )
 
         return records

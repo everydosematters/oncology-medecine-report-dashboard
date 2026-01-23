@@ -169,3 +169,6 @@ seed/production/profiles_hub.*
 # node
 .npmrc
 **/coverage
+
+# database
+*.db

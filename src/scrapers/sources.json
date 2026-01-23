@@ -1,107 +1,101 @@
 {
-    "FDA_US": {
-      "source_id": "FDA_US",
-      "source_country": "United States",
-      "source_org": "U.S. Food and Drug Administration (FDA)",
-      "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
-      "type": "listing_with_detail_pages",
-      "request": {
-        "headers": {
-          "Accept-Language": "en-US,en;q=0.9"
-        }
-      },
-      "listing": {
-        "item_selector": "div.view-content div.views-row",
-        "link_selector": "a",
-        "date_selector": "span.date-display-single",
-        "pagination": {
-          "type": "query_param",
-          "param": "page",
-          "start": 0,
-          "max_pages": 5
-        }
-      },
-      "detail_page": {
-        "title_selector": "h1",
-        "body_selector": "div.field--name-body",
-        "publish_date_selector": "time",
-        "fields": {
-          "manufacturer_stated": {
-            "strategy": "regex",
-            "pattern": "(manufacturer|company)[:\\s]+(.+)"
-          },
-          "reason": {
-            "strategy": "regex",
-            "pattern": "(reason for recall|issue|problem)[:\\s]+(.+)"
-          }
-        }
-      },
-      "filters": {
-        "require_oncology": true,
-        "oncology_keywords": [
-          "oncology",
-          "cancer",
-          "tumor",
-          "chemotherapy",
-          "immunotherapy",
-          "malignant"
-        ]
-      },
-      "defaults": {
-        "therapeutic_category": "Oncology",
-        "alert_type": "Recall"
+  "FDA_US": {
+    "source_id": "FDA_US",
+    "source_country": "United States",
+    "source_org": "U.S. Food and Drug Administration (FDA)",
+    "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
+    "type": "listing_with_detail_pages",
+    "request": {
+      "headers": {
+        "Accept-Language": "en-US,en;q=0.9"
       }
     },
-    "NAFDAC_NG": {
-      "source_id": "NAFDAC_NG",
-      "source_country": "Nigeria",
-      "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
-      "base_url": "https://nafdac.gov.ng/category/recalls-and-alerts/",
-      "type": "listing_with_detail_pages",
-      "request": {
-        "headers": {
-          "Accept-Language": "en-GB,en;q=0.9"
+    "listing": {
+      "item_selector": "table#datatable tbody tr",
+      "link_selector": "td:nth-child(2) a",
+      "date_selector": "td:nth-child(1) time"
+    },
+    "detail_page": {
+      "title_selector": "h1",
+      "body_selector": "div.field--name-body",
+      "publish_date_selector": "time",
+      "fields": {
+        "manufacturer_stated": {
+          "strategy": "regex",
+          "pattern": "(manufacturer|company)[:\\s]+(.+)"
+        },
+        "reason": {
+          "strategy": "regex",
+          "pattern": "(reason for recall|issue|problem)[:\\s]+(.+)"
         }
-      },
-      "listing": {
-        "item_selector": "article",
-        "link_selector": "h2.entry-title a",
-        "date_selector": "time.entry-date",
-        "pagination": {
-          "type": "path",
-          "pattern": "page/{page}/",
-          "start": 1,
-          "max_pages": 5
-        }
-      },
-      "detail_page": {
-        "title_selector": "h1.entry-title",
-        "body_selector": "div.entry-content",
-        "publish_date_selector": "time.entry-date",
-        "fields": {
-          "manufacturer_stated": {
-            "strategy": "regex",
-            "pattern": "(manufacturer|manufactured by)[:\\s]+(.+)"
-          },
-          "reason": {
-            "strategy": "regex",
-            "pattern": "(reason|cause|issue)[:\\s]+(.+)"
-          }
-        }
-      },
-      "filters": {
-        "require_oncology": true,
-        "oncology_keywords": [
-          "oncology",
-          "cancer",
-          "tumour",
-          "chemotherapy",
-          "immunotherapy"
-        ]
-      },
-      "defaults": {
-        "therapeutic_category": "Oncology",
-        "alert_type": "Recall / Safety Alert"
       }
+    },
+    "filters": {
+      "require_oncology": true,
+      "oncology_keywords": [
+        "oncology",
+        "cancer",
+        "tumor",
+        "chemotherapy",
+        "immunotherapy",
+        "malignant"
+      ]
+    },
+    "defaults": {
+      "therapeutic_category": "Oncology",
+      "alert_type": "Recall"
+    }
+  },
+  "NAFDAC_NG": {
+    "source_id": "NAFDAC_NG",
+    "source_country": "Nigeria",
+    "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
+    "base_url": "https://nafdac.gov.ng/category/recalls-and-alerts/",
+    "type": "listing_with_detail_pages",
+    "request": {
+      "headers": {
+        "Accept-Language": "en-GB,en;q=0.9"
+      }
+    },
+    "listing": {
+      "item_selector": "article",
+      "link_selector": "h2.entry-title a",
+      "date_selector": "time.entry-date",
+      "pagination": {
+        "type": "path",
+        "pattern": "page/{page}/",
+        "start": 1,
+        "max_pages": 5
+      }
+    },
+    "detail_page": {
+      "title_selector": "h1.entry-title",
+      "body_selector": "div.entry-content",
+      "publish_date_selector": "time.entry-date",
+      "fields": {
+        "manufacturer_stated": {
+          "strategy": "regex",
+          "pattern": "(manufacturer|manufactured by)[:\\s]+(.+)"
+        },
+        "reason": {
+          "strategy": "regex",
+          "pattern": "(reason|cause|issue)[:\\s]+(.+)"
+        }
+      }
+    },
+    "filters": {
+      "require_oncology": true,
+      "oncology_keywords": [
+        "oncology",
+        "cancer",
+        "tumour",
+        "chemotherapy",
+        "immunotherapy"
+      ]
+    },
+    "defaults": {
+      "therapeutic_category": "Oncology",
+      "alert_type": "Recall / Safety Alert"
     }
   }
+}
