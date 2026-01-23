@@ -6,7 +6,7 @@ import abc
 import hashlib
 import re
 import sqlite3
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date
 from typing import Any, Dict, List, Optional, Sequence
 
 import requests
@@ -194,10 +194,17 @@ class BaseScraper(abc.ABC):
             conn.close()
 
     @staticmethod
-    def make_record_id(*parts: str) -> str:
-        """
-        Stable ID for de-duping/upserts.
-        Use source + url + date + title (+ manufacturer) etc.
-        """
-        raw = "||".join([p.strip() for p in parts if p is not None])
+    def make_record_id(*parts) -> str:
+        normalized = []
+        for p in parts:
+            if p is None:
+                continue
+
+            # Handle datetime/date explicitly
+            if isinstance(p, (datetime, date)):
+                normalized.append(p.isoformat())
+            else:
+                normalized.append(str(p).strip())
+
+        raw = "||".join(normalized)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()

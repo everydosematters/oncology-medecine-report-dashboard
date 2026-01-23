@@ -8,6 +8,9 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 from urllib.parse import urljoin
 
+from datetime import datetime
+
+
 from bs4 import BeautifulSoup
 
 
@@ -47,3 +50,27 @@ def extract_by_regex(body_text: str, pattern: str) -> Optional[str]:
         return None
     val = m.group(m.lastindex) if m.lastindex else m.group(0)
     return clean_text(val)
+
+
+def parse_nafdac_date(value: Optional[str]) -> Optional[datetime]:
+    """
+    Parse NAFDAC date strings like '15-Oct-25' into a timezone-naive datetime.
+    Return None if parsing fails.
+    """
+    if not value:
+        return None
+
+    value = value.strip()
+
+    # Common NAFDAC format: 15-Oct-25
+    for fmt in ("%d-%b-%y", "%d-%b-%Y", "%d-%B-%y", "%d-%B-%Y"):
+        try:
+            return datetime.strptime(value, fmt)
+        except ValueError:
+            continue
+
+    # If it's already ISO-ish, let datetime.fromisoformat try
+    try:
+        return datetime.fromisoformat(value)
+    except ValueError:
+        return None

@@ -16,6 +16,7 @@ from .utils import (
     select_one_text,
     absolutize,
     extract_by_regex,
+    parse_nafdac_date
 )
 
 
@@ -71,39 +72,70 @@ class NafDacScraper(BaseScraper):
                 urls.append(base + "/" + suffix)
         return urls
 
-    def _parse_listing_page(self, html: str, listing_url: str) -> List[Tuple[str, Optional[str]]]:
+    def _parse_listing_page(self, html: str, listing_url: str):
         listing_cfg = self.cfg.get("listing") or {}
-        item_sel = listing_cfg.get("item_selector")
-        link_sel = listing_cfg.get("link_selector")
-        date_sel = listing_cfg.get("date_selector")
+        item_sel = listing_cfg.get("item_selector")  # "table tbody tr"
+        link_sel = listing_cfg.get("link_selector")  # "td:nth-child(2) a.ninja_table_permalink"
+        date_sel = listing_cfg.get("date_selector")  # "td:nth-child(1)"
+        fields_sel = listing_cfg.get("fields") or {}
 
         soup = BeautifulSoup(html, "html.parser")
-        items = soup.select(item_sel) if item_sel else []
+        rows = soup.select(item_sel) if item_sel else []
 
-        out: List[Tuple[str, Optional[str]]] = []
-        for item in items:
-            link_el = item.select_one(link_sel) if link_sel else None
+        out = []
+        for row in rows:
+            link_el = row.select_one(link_sel) if link_sel else None
             if not link_el or not link_el.get("href"):
                 continue
+
             detail_url = absolutize(listing_url, link_el["href"])
+            title = clean_text(link_el.get_text(" ", strip=True))
 
-            date_txt = None
+            publish_date = None
             if date_sel:
-                date_el = item.select_one(date_sel)
-                if date_el:
-                    date_txt = clean_text(date_el.get_text(" ", strip=True))
+                d_el = row.select_one(date_sel)
+                if d_el:
+                    publish_date = clean_text(d_el.get_text(" ", strip=True))
 
-            out.append((detail_url, date_txt))
+            # Extract extra columns from listing row
+            listing_alert_type = None
+            if fields_sel.get("alert_type"):
+                a_el = row.select_one(fields_sel["alert_type"])
+                listing_alert_type = clean_text(a_el.get_text(" ", strip=True)) if a_el else None
 
-        # de-dupe while preserving order
+            listing_category = None
+            if fields_sel.get("category"):
+                c_el = row.select_one(fields_sel["category"])
+                listing_category = clean_text(c_el.get_text(" ", strip=True)) if c_el else None
+
+            listing_company = None
+            if fields_sel.get("company"):
+                co_el = row.select_one(fields_sel["company"])
+                listing_company = clean_text(co_el.get_text(" ", strip=True)) if co_el else None
+
+            out.append(
+                {
+                    "detail_url": detail_url,
+                    "title": title,
+                    "publish_date": publish_date,
+                    "alert_type": listing_alert_type,
+                    "category": listing_category,
+                    "manufacturer_stated": listing_company,
+                }
+            )
+
+        # de-dupe by detail_url preserving order
         seen = set()
-        deduped: List[Tuple[str, Optional[str]]] = []
-        for u, d in out:
-            if u in seen:
+        deduped = []
+        for r in out:
+            if r["detail_url"] in seen:
                 continue
-            seen.add(u)
-            deduped.append((u, d))
+            seen.add(r["detail_url"])
+            deduped.append(r)
+
         return deduped
+
+
 
     def _parse_detail_page(self, html: str) -> Dict[str, Optional[str]]:
         dcfg = self.cfg.get("detail_page") or {}
@@ -122,42 +154,50 @@ class NafDacScraper(BaseScraper):
 
     def standardize(self) -> List[DrugAlert]:
         defaults = self.cfg.get("defaults") or {}
-        records: List[DrugAlert] = []
-        seen_record_ids: set[str] = set()
+        records = []
 
         for listing_url in self._listing_urls():
             listing_scraped = self.scrape(listing_url)
-            listing_items = self._parse_listing_page(
+
+            rows = self._parse_listing_page(
                 html=listing_scraped["html"],
                 listing_url=listing_scraped.get("final_url") or listing_url,
             )
-
-            for detail_url, listing_date in listing_items:
-                detail_scraped = self.scrape(detail_url)
+            i = 1
+            for row in rows:
+                print("="*10)
+                print(f"{i}: {row.get('title')}")
+                print("="*10)
+                print()
+                # Scrape detail page (your “scrape again” requirement)
+                if row['category'] not in ['Drugs', 'Drug', 'Drugs & Biological']:
+                    continue
+                detail_scraped = self.scrape(row["detail_url"])
                 parsed = self._parse_detail_page(detail_scraped["html"])
 
+                # Filter based on the DETAIL page content (not listing)
                 body_text = parsed.get("body_text") or detail_scraped.get("text") or ""
                 if not self._is_oncology(body_text):
                     continue
 
-                title = parsed.get("title")
-                publish_date = parsed.get("publish_date") or listing_date
+                title = parsed.get("title") or row.get("title")
+                raw_date = parsed.get("publish_date") or row.get("publish_date")
+                publish_date = parse_nafdac_date(raw_date)
 
-                manufacturer_stated = parsed.get("manufacturer_stated")
+
+                manufacturer_stated = parsed.get("manufacturer_stated") or row.get("manufacturer_stated")
                 reason = parsed.get("reason")
+
+                # Prefer listing alert type if present; else default
+                alert_type = row.get("alert_type") or defaults.get("alert_type")
 
                 record_id = self.make_record_id(
                     self.source_id,
-                    detail_scraped.get("final_url") or detail_url,
+                    detail_scraped.get("final_url") or row["detail_url"],
                     title or "",
                     publish_date or "",
                     manufacturer_stated or "",
                 )
-
-                # Deduplicate by record_id across all pages
-                if record_id in seen_record_ids:
-                    continue
-                seen_record_ids.add(record_id)
 
                 records.append(
                     DrugAlert(
@@ -165,18 +205,24 @@ class NafDacScraper(BaseScraper):
                         source_id=self.source_id,
                         source_country=self.source_country,
                         source_org=self.source_org,
-                        source_url=detail_scraped.get("final_url") or detail_url,
+                        source_url=detail_scraped.get("final_url") or row["detail_url"],
+
+                        # REQUIRED in your model (even if Optional[str])
+                        product_name=title,
+
                         title=title,
                         publish_date=publish_date,
                         manufacturer_stated=manufacturer_stated,
                         manufactured_for=None,
-                        product_name=None,
-                        reason=reason,
                         therapeutic_category=defaults.get("therapeutic_category"),
-                        alert_type=defaults.get("alert_type"),
-                        notes=None,
+                        reason=reason,
+                        alert_type=alert_type,
+                        notes=row.get("category"),   # optional: store category ("Food"/"Drugs")
+                        body_text=body_text,
+
                         scraped_at=datetime.now(timezone.utc),
                     )
                 )
+                i +=1
 
         return records

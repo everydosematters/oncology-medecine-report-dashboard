@@ -58,14 +58,19 @@
       }
     },
     "listing": {
-      "item_selector": "article",
-      "link_selector": "h2.entry-title a",
-      "date_selector": "time.entry-date",
+      "item_selector": "table tbody tr",
+      "link_selector": "td:nth-child(2) a.ninja_table_permalink",
+      "date_selector": "td:nth-child(1)",
+      "fields": {
+        "alert_type": "td:nth-child(3)",
+        "category": "td:nth-child(4)",
+        "company": "td:nth-child(5)"
+      },
       "pagination": {
         "type": "path",
         "pattern": "page/{page}/",
         "start": 1,
-        "max_pages": 5
+        "max_pages": 2
       }
     },
     "detail_page": {
