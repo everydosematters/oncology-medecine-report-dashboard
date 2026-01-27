@@ -30,7 +30,7 @@ class NafDacScraper(BaseScraper):
     - Implements standardize() to output DrugAlert rows
     """
 
-    def __init__(self, sources_path: str = "config/sources.json") -> None:
+    def __init__(self, sources_path: str = "config/sources.json", start_date: Optional[datetime] = None) -> None:
         self.cfg = load_source_cfg(sources_path, "NAFDAC_NG")
         base_url = self.cfg["base_url"]
         req_args = self.cfg.get("request") or {}
@@ -39,6 +39,7 @@ class NafDacScraper(BaseScraper):
         self.source_id = self.cfg["source_id"]
         self.source_country = self.cfg.get("source_country")
         self.source_org = self.cfg.get("source_org")
+        self.start_date = start_date
 
     def _is_oncology(self, body_text: str) -> bool:
         filters = self.cfg.get("filters") or {}
@@ -46,7 +47,7 @@ class NafDacScraper(BaseScraper):
             return True
         keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
         hay = (body_text or "").lower()
-        return any(k.lower() in hay for k in keywords)
+        return any(k.lower() in hay for k in keywords) #FIXME use regular expression it is faster
 
     def _listing_urls(self) -> List[str]:
         listing_cfg = self.cfg.get("listing") or {}
@@ -165,10 +166,6 @@ class NafDacScraper(BaseScraper):
             )
             i = 1
             for row in rows:
-                print("="*10)
-                print(f"{i}: {row.get('title')}")
-                print("="*10)
-                print()
                 # Scrape detail page (your “scrape again” requirement)
                 if row['category'] not in ['Drugs', 'Drug', 'Drugs & Biological']:
                     continue
@@ -183,6 +180,10 @@ class NafDacScraper(BaseScraper):
                 title = parsed.get("title") or row.get("title")
                 raw_date = parsed.get("publish_date") or row.get("publish_date")
                 publish_date = parse_nafdac_date(raw_date)
+                if self.start_date and self.start_date > publish_date:
+                    print(publish_date)
+                    # break we reached the amount of record we need
+                    break
 
 
                 manufacturer_stated = parsed.get("manufacturer_stated") or row.get("manufacturer_stated")
@@ -198,6 +199,10 @@ class NafDacScraper(BaseScraper):
                     publish_date or "",
                     manufacturer_stated or "",
                 )
+
+                print("="*10)
+                print(record_id)
+                print("="*10)
 
                 records.append(
                     DrugAlert(
