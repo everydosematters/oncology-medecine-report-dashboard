@@ -70,7 +70,7 @@
         "type": "path",
         "pattern": "page/{page}/",
         "start": 1,
-        "max_pages": 2
+        "max_pages": 1
       }
     },
     "detail_page": {
