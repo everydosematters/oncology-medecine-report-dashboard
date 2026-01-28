@@ -65,12 +65,6 @@
         "alert_type": "td:nth-child(3)",
         "category": "td:nth-child(4)",
         "company": "td:nth-child(5)"
-      },
-      "pagination": {
-        "type": "path",
-        "pattern": "page/{page}/",
-        "start": 1,
-        "max_pages": 1
       }
     },
     "detail_page": {
