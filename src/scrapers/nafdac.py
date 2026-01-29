@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
 from bs4 import BeautifulSoup
+import re
 
 from src.models import DrugAlert
 
@@ -84,9 +85,9 @@ class NafDacScraper(BaseScraper):
         return product_specs
 
 
-    def _parse_listing_page(self, html: str, listing_url: str) -> List[Dict[str, Any]]:
+    def _parse_listing_page(self, html: str, listing_url: str) -> List[DrugAlert]:
         """
-        Reads table rows from tbody and extracts:
+        Reads table rows from tbody and extracts all necessary info
           - publish_date (col 1)
           - title + detail_url (col 2)
           - alert_type/category/company (optional, from config mapping)
@@ -94,59 +95,80 @@ class NafDacScraper(BaseScraper):
         listing_cfg = self.cfg.get("listing") or {}
         item_sel = listing_cfg.get("item_selector")
         link_sel = listing_cfg.get("link_selector")
-        # FIXME figure out if it is a drug, if not get away fast!
         date_sel = listing_cfg.get("date_selector")
         fields = listing_cfg.get("fields") or {}
 
         soup = BeautifulSoup(html, "html.parser")
         rows = soup.select(item_sel) if item_sel else []
 
-        results: List[Dict[str, Any]] = []
+        results: List[DrugAlert] = []
+
         for row in rows:
-            # if this is not a drug, don't waste your time just move on to the next row
-            category = select_one_text(row, fields.get('category'))
-            if category not in {'Drug', 'Drugs', 'Drugs & Biological'}: #FIXME use regular expression
-                continue
+            # First check that the alert is a drug, if not move on
+            category = clean_text(row.select_one(fields["category"]).get_text(" ", strip=True)) or ""
+            if not re.search(r"drug",category, re.IGNORECASE):
+                # skip this if it is not a drug
+                continue 
 
             link_el = row.select_one(link_sel) if link_sel else None
             if not link_el or not link_el.get("href"):
+                # TODO handle when no link is provided, just return title
                 continue
 
             title = clean_text(link_el.get_text(" ", strip=True))
             detail_url = absolutize(listing_url, link_el["href"])
 
-            raw_date = None
+            publish_date = None
             if date_sel:
                 d_el = row.select_one(date_sel)
-                raw_date = clean_text(d_el.get_text(" ", strip=True)) if d_el else None
+                publish_date = clean_text(d_el.get_text(" ", strip=True)) if d_el else None
+            
+            # standardize
+            detail_scraped = self.scrape(detail_url)
 
-            results.append(
-                {
-                    "detail_url": detail_url,
-                    "title": title,
-                    "listing_publish_date": parse_nafdac_date(raw_date),
-                    "listing_alert_type": clean_text(row.select_one(fields["alert_type"]).get_text(" ", strip=True))
-                    if fields.get("alert_type") and row.select_one(fields["alert_type"])
-                    else None,
-                    "listing_category": clean_text(row.select_one(fields["category"]).get_text(" ", strip=True))
-                    if fields.get("category") and row.select_one(fields["category"])
-                    else None,
-                    "listing_company": clean_text(row.select_one(fields["company"]).get_text(" ", strip=True))
-                    if fields.get("company") and row.select_one(fields["company"])
-                    else None,
-                }
-            )
+            
+            
+            parsed, is_oncology = self._parse_detail_page(detail_scraped["html"])
 
-        # de-dupe by URL (listing pages can repeat)
-        seen = set()
-        deduped: List[Dict[str, Any]] = []
-        for r in results:
-            if r["detail_url"] in seen:
+            if not is_oncology:
                 continue
-            seen.add(r["detail_url"])
-            deduped.append(r)
 
-        return deduped
+            publish_date = parse_nafdac_date(publish_date)
+
+            manufacturer = clean_text(row.select_one(fields["company"]).get_text(" ", strip=True))
+            
+            alert_type = clean_text(row.select_one(fields["alert_type"]).get_text(" ", strip=True)) if fields.get("alert_type") and row.select_one(fields["alert_type"]) else None
+
+            record_id = self.make_record_id(
+                self.source_id,
+                detail_url,
+                publish_date,
+                title,
+                manufacturer,
+            )
+           
+            results.append(
+                DrugAlert(
+                    record_id=record_id,
+                    source_id=self.source_id,
+                    source_country=self.source_country,
+                    source_org=self.source_org,
+                    source_url=detail_scraped.get("final_url") or row["detail_url"],
+                    title=title,
+                    publish_date=publish_date, #FIXME make this a datetime
+                    manufacturer_stated=manufacturer,
+                    manufactured_for=None,
+                    reason=None,
+                    therapeutic_category=None,
+                    alert_type=alert_type,
+                    notes=clean_text(row.select_one(fields["category"]).get_text(" ", strip=True)),
+                    scraped_at=datetime.now(timezone.utc),
+                    product_name=parsed["product_names"],
+                    batch_number=parsed["batch_num"],
+                    expiry_date=parsed["expiry_date"] #FIXME make this a datetime
+                )
+            )
+        return results
 
     def _parse_detail_page(self, html: str) -> Tuple(Dict[str, Any], bool):
         dcfg = self.cfg.get("detail_page") or {}
@@ -175,63 +197,12 @@ class NafDacScraper(BaseScraper):
         }, True
 
     def standardize(self) -> List[DrugAlert]:
-        defaults = self.cfg.get("defaults") or {}
-        records: List[DrugAlert] = []
         listing_url = self.cfg["base_url"] # Base is sufficient gives all the listings in this case
-
         
         listing_scraped = self.scrape(listing_url)
-        listing_rows = self._parse_listing_page(
+        records = self._parse_listing_page(
             html=listing_scraped["html"],
             listing_url=listing_scraped.get("final_url") or listing_url,
         )
-
-        for row in listing_rows:
-            detail_scraped = self.scrape(row["detail_url"])
-            parsed, is_oncology = self._parse_detail_page(detail_scraped["html"])
-            if not is_oncology:
-                continue
-
-
-            title = parsed.get("title") or row.get("title")
-            publish_date = parsed.get("publish_date") or row.get("listing_publish_date")
-
-            manufacturer = parsed.get("manufacturer_stated") or row.get("listing_company")
-            reason = parsed.get("reason")
-
-            alert_type = row.get("listing_alert_type") or defaults.get("alert_type")
-
-            record_id = self.make_record_id(
-                self.source_id,
-                detail_scraped.get("final_url") or row["detail_url"],
-                publish_date,
-                title,
-                manufacturer,
-            )
-           
-            records.append(
-                DrugAlert(
-                    record_id=record_id,
-                    source_id=self.source_id,
-                    source_country=self.source_country,
-                    source_org=self.source_org,
-                    source_url=detail_scraped.get("final_url") or row["detail_url"],
-                    title=title,
-                    publish_date=publish_date, #FIXME make this a datetime
-                    manufacturer_stated=manufacturer,
-                    manufactured_for=None,
-                    reason=reason,
-                    therapeutic_category=defaults.get("therapeutic_category"),
-                    alert_type=alert_type,
-                    notes=row.get("listing_category"),
-                    scraped_at=datetime.now(timezone.utc),
-                    product_name=parsed["product_names"],
-                    batch_number=parsed["batch_num"],
-                    expiry_date=parsed["expiry_date"] #FIXME make this a datetime
-                )
-            )
-            print("="*10)
-            print(records)
-            print("="*10)
 
         return records

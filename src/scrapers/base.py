@@ -22,10 +22,12 @@ class BaseScraper(abc.ABC):
         *,
         args: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
+        start_date: Optional[datetime] = None
     ) -> None:
         self.url = url
         self.args = args or {}
         self.timeout = timeout
+        self.start_date = start_date
 
         # Safe default UA
         self.args.setdefault("headers", {})
