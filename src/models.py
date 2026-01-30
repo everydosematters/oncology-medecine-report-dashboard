@@ -21,11 +21,7 @@ class DrugAlert(pyd.BaseModel):
 
     # Core content (optional but commonly filled)
     title: Optional[str] = None
-    manufacturer_stated: Optional[str] = None
-    manufactured_for: Optional[str] = None
-    reason: Optional[str] = None
-
-    therapeutic_category: Optional[str] = None
+    manufacturer: Optional[str] = None
     alert_type: Optional[AlertType] = None
 
     publish_date: Optional[datetime] = None
@@ -33,10 +29,11 @@ class DrugAlert(pyd.BaseModel):
 
     # Always set at scrape-time (required)
     scraped_at: datetime
-    
-    product_name: list[str] | str
+    product_name: Optional[list[str] | str] = None
+    brand_name: Optional[str] = None
+    generic_name: Optional[str] = None
     batch_number: Optional[list[str] | str] = None
-    expiry_date: Optional[list[str] | str] = None# FIXME this should be a datetime
+    expiry_date: Optional[datetime] = None
 
 
     model_config = pyd.ConfigDict(

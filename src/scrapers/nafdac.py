@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from tracemalloc import start
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
@@ -24,9 +25,9 @@ from .utils import (
 
 
 class NafDacScraper(BaseScraper):
-    def __init__(self, sources_path: str = "config/sources.json") -> None:
+    def __init__(self, sources_path: str = "config/sources.json", start_date: datetime = None) -> None:
         self.cfg = load_source_cfg(sources_path, "NAFDAC_NG")
-        super().__init__(self.cfg["base_url"], args=self.cfg.get("request") or {})
+        super().__init__(self.cfg["base_url"], args=self.cfg.get("request") or {}, start_date=start_date)
 
         self.source_id = self.cfg["source_id"]
         self.source_country = self.cfg["source_country"]
@@ -78,10 +79,9 @@ class NafDacScraper(BaseScraper):
                 if num:
                     product_specs['batch_num'].append(num)
                 if expiry_date:
-                    product_specs['expiry_date'].append(expiry_date)
+                    product_specs['expiry_date'].append(datetime.strptime(expiry_date, "%m-%Y"))
                 if product:
-                    product_specs['product_names'].append(product)
-                    return product_specs
+                    product_specs['product_name'].append(product)
         return product_specs
 
 
@@ -123,6 +123,7 @@ class NafDacScraper(BaseScraper):
                 d_el = row.select_one(date_sel)
                 publish_date = clean_text(d_el.get_text(" ", strip=True)) if d_el else None
             
+            
             # standardize
             detail_scraped = self.scrape(detail_url)
 
@@ -134,6 +135,11 @@ class NafDacScraper(BaseScraper):
                 continue
 
             publish_date = parse_nafdac_date(publish_date)
+
+            if self.start_date and publish_date:
+                # FIXME this is so ugly but yeah
+                if self.start_date > publish_date:
+                    break
 
             manufacturer = clean_text(row.select_one(fields["company"]).get_text(" ", strip=True))
             
@@ -155,44 +161,48 @@ class NafDacScraper(BaseScraper):
                     source_org=self.source_org,
                     source_url=detail_scraped.get("final_url") or row["detail_url"],
                     title=title,
-                    publish_date=publish_date, #FIXME make this a datetime
-                    manufacturer_stated=manufacturer,
-                    manufactured_for=None,
-                    reason=None,
-                    therapeutic_category=None,
+                    publish_date=publish_date, 
+                    manufacturer=manufacturer,
                     alert_type=alert_type,
                     notes=clean_text(row.select_one(fields["category"]).get_text(" ", strip=True)),
                     scraped_at=datetime.now(timezone.utc),
-                    product_name=parsed["product_names"],
+                    brand_name=parsed["brand_name"],
+                    generic_name=parsed["generic_name"],
                     batch_number=parsed["batch_num"],
-                    expiry_date=parsed["expiry_date"] #FIXME make this a datetime
+                    expiry_date=parsed["expiry_date"][0] 
                 )
             )
+            print("="*20)
+            print(results)
+            print("="*20)
         return results
 
     def _parse_detail_page(self, html: str) -> Tuple(Dict[str, Any], bool):
-        dcfg = self.cfg.get("detail_page") or {}
         soup = BeautifulSoup(html, "html.parser")
 
         title = select_one_text(soup, "h1")
         # body = select_one_text(soup, "div.elementor-widget-container")
+        title = re.search(r"[-–]\s*(.+)", title).group(1)
+        
+        m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title)
+        
+        brand_name = m.group(1).strip() if m else None
+        generic_name = m.group(2).strip() if m else None
+        
+        
         body = select_all_text(soup, "p")
 
         if not self._is_oncology(body):
             return {}, False
-        raw_publish = select_one_text(soup, dcfg.get("publish_date_selector", ""))
 
-        extracted: Dict[str, Optional[str]] = {}
-        for field_name, rule in (dcfg.get("fields") or {}).items():
-            if (rule or {}).get("strategy") == "regex":
-                extracted[field_name] = extract_by_regex(body or "", rule.get("pattern", ""))
+        
         
         product_specs = self._extract_product_specs(soup)
         return {
             "title": title,
             "body_text": body,
-            "publish_date": parse_nafdac_date(raw_publish),
-            **extracted,
+            "brand_name": brand_name,
+            "generic_name": generic_name,
             **product_specs
         }, True
 
