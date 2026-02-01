@@ -7,7 +7,7 @@ from tracemalloc import start
 from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup,Tag
 import re
 
 from src.models import DrugAlert
@@ -17,10 +17,13 @@ from .utils import (
     absolutize,
     clean_text,
     extract_by_regex,
+    normalize_key,
+    cell_text,
     load_source_cfg,
     parse_nafdac_date,
     select_one_text,
-    select_all_text
+    select_all_text,
+    parse_month_year
 )
 
 
@@ -40,50 +43,80 @@ class NafDacScraper(BaseScraper):
         keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
+
+    def _parse_nafdac_table(self, table: Tag) -> dict[str, list[str]]:
+        """
+        Returns a normalized column-oriented dict, e.g.
+
+        {
+        "product_name": [...],
+        "batch_number": [...],
+        "expiry_date": [...],
+        "stated_manufacturer": [...],
+        "date_of_manufacture": [...]
+        }
+        """
+        result: dict[str, list[str]] = {}
+
+        # collect rows as list[list[str]]
+        rows: list[list[str]] = []
+        for tr in table.select("tr"):
+            cells = tr.find_all("td")
+            row = [cell_text(td) for td in cells]
+            row = [x for x in row if x]
+            if row:
+                rows.append(row)
+
+        if not rows:
+            return result
+
+        # -------------------------------
+        # CASE A: 3-column matrix table
+        # -------------------------------
+        if len(rows[0]) == 3:
+            headers = [normalize_key(h) for h in rows[0]]
+
+            for h in headers:
+                result.setdefault(h, [])
+
+            for r in rows[1:]:
+                if len(r) != 3:
+                    continue
+                for i, h in enumerate(headers):
+                    result[h].append(r[i])
+
+            return result
+
+        # -------------------------------
+        # CASE B: 2-column key/value table
+        # -------------------------------
+        if all(len(r) == 2 for r in rows):
+            for label, value in rows:
+                key = normalize_key(label)
+                if not key:
+                    continue
+                result.setdefault(key, []).append(value)
+
+            return result
+
+        # -------------------------------
+        # fallback
+        # -------------------------------
+        return result
+
+
     
-    def _extract_product_specs(*soup: BeautifulSoup,
+    def _extract_product_specs(self, *soup: BeautifulSoup,
     ) -> dict:
         """
         Extracts the product specification like batch number and name
         """
-        product_specs = defaultdict(list[str])
         
-       
         for table in soup[-1].find_all("table"):
-            # Gather header-ish text from <strong> or first row
-            header_text = " ".join(
-                s.get_text(" ", strip=True) for s in table.find_all("strong")
-            ).lower()
-
-            # Fallback: sometimes headers aren't in <strong>
-            if not header_text:
-                first_row = table.find("tr")
-                if first_row:
-                    header_text = first_row.get_text(" ", strip=True).lower()
-
-            if "product name" not in header_text:
-                continue
-
-            # Parse rows
-            rows = table.find_all("tr")
-
-            for tr in rows[1:]:  # skip header row
-                tds = tr.find_all("td")
-                if len(tds) < 2:
-                    continue
-                product = tds[0].get_text(" ", strip=True)
-                num = tds[1].get_text(" ", strip=True) # 
-                expiry_date = tds[2].get_text(" ", strip=True)
-
-                
-                if num:
-                    product_specs['batch_num'].append(num)
-                if expiry_date:
-                    product_specs['expiry_date'].append(datetime.strptime(expiry_date, "%m-%Y"))
-                if product:
-                    product_specs['product_name'].append(product)
-        return product_specs
-
+            parsed_table = self._parse_nafdac_table(table)
+            if parsed_table:
+                return parsed_table
+        return {}
 
     def _parse_listing_page(self, html: str, listing_url: str) -> List[DrugAlert]:
         """
@@ -157,7 +190,7 @@ class NafDacScraper(BaseScraper):
                 DrugAlert(
                     record_id=record_id,
                     source_id=self.source_id,
-                    source_country=self.source_country,
+                    source_country=self.source_country, #FIXME use parsing of the title to know where it is reported
                     source_org=self.source_org,
                     source_url=detail_scraped.get("final_url") or row["detail_url"],
                     title=title,
@@ -168,8 +201,8 @@ class NafDacScraper(BaseScraper):
                     scraped_at=datetime.now(timezone.utc),
                     brand_name=parsed["brand_name"],
                     generic_name=parsed["generic_name"],
-                    batch_number=parsed["batch_num"],
-                    expiry_date=parsed["expiry_date"][0] 
+                    batch_number=parsed["batch_number"],
+                    expiry_date=parse_month_year(parsed["expiry_date"][0])
                 )
             )
             print("="*20)

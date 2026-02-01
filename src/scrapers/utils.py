@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urljoin
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 
 
 def load_source_cfg(sources_path: str, source_key: str) -> Dict[str, Any]:
@@ -26,6 +26,22 @@ def clean_text(s: Optional[str]) -> Optional[str]:
         return None
     s = re.sub(r"\s+", " ", s).strip()
     return s or None
+
+def cell_text(cell: Tag) -> str:
+    """
+    Joins all <p> or nested text inside a cell into one string.
+    """
+    return clean_text(cell.get_text(" ", strip=True))
+
+def normalize_key(label: str) -> str:
+    """
+    Turn table labels into consistent snake-ish keys.
+    e.g. "Stated Manufacturer" -> "stated_manufacturer"
+    """
+    label = clean_text(label).rstrip(":")
+    label = re.sub(r"[^\w\s]+", "", label)  # drop punctuation
+    label = re.sub(r"\s+", "_", label).lower()
+    return label
 
 
 def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
@@ -93,6 +109,29 @@ def parse_nafdac_date(value: Optional[str]) -> Optional[datetime]:
     # Try ISO-ish values (some pages use 2026-01-09)
     try:
         return datetime.fromisoformat(value)
+    except ValueError:
+        return None
+
+
+def parse_month_year(value: Optional[str]) -> Optional[datetime]:
+    """
+    Parse month-year strings like:
+      - '10-2020'
+      - '10/2020'
+    into a datetime object (YYYY-MM-01).
+
+    Returns None if parsing fails.
+    """
+    if not value:
+        return None
+
+    value = value.strip()
+
+    # Normalize separator to "-"
+    value = re.sub(r"[\/]", "-", value)
+
+    try:
+        return datetime.strptime(value, "%m-%Y")
     except ValueError:
         return None
 
