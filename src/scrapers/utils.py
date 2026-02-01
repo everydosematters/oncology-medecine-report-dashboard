@@ -91,48 +91,45 @@ def extract_by_regex(body_text: str, pattern: str) -> Optional[str]:
     return clean_text(value)
 
 
-def parse_nafdac_date(value: Optional[str]) -> Optional[datetime]:
+def parse_date(value: Optional[str]) -> Optional[datetime]:
     """
-    Parse NAFDAC listing dates like '15-Oct-25' into datetime.
+    Parse various date formats encountered in NAFDAC/FDA pages.
+
+    Supported:
+      - '15-Oct-25'
+      - '15-Oct-2025'
+      - '15-October-25'
+      - '15-October-2025'
+      - '2026-01-09' (ISO)
+      - '10-2020'
+      - '10/2020'
+
+    Partial month-year dates are normalized to the first day of the month.
     Returns None if parsing fails.
     """
     if not value:
         return None
 
     value = value.strip()
+
+    # --- 1) Month-Year formats (10-2020, 10/2020) ---
+    # Normalize separator
+    month_year = re.sub(r"[\/]", "-", value)
+    if re.fullmatch(r"\d{2}-\d{4}", month_year):
+        try:
+            return datetime.strptime(month_year, "%m-%Y")
+        except ValueError:
+            pass
+
+    # --- 2) NAFDAC-style day-month-year formats ---
     for fmt in ("%d-%b-%y", "%d-%b-%Y", "%d-%B-%y", "%d-%B-%Y"):
         try:
             return datetime.strptime(value, fmt)
         except ValueError:
             pass
 
-    # Try ISO-ish values (some pages use 2026-01-09)
+    # --- 3) ISO / ISO-like formats ---
     try:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
-
-
-def parse_month_year(value: Optional[str]) -> Optional[datetime]:
-    """
-    Parse month-year strings like:
-      - '10-2020'
-      - '10/2020'
-    into a datetime object (YYYY-MM-01).
-
-    Returns None if parsing fails.
-    """
-    if not value:
-        return None
-
-    value = value.strip()
-
-    # Normalize separator to "-"
-    value = re.sub(r"[\/]", "-", value)
-
-    try:
-        return datetime.strptime(value, "%m-%Y")
-    except ValueError:
-        return None
-
-

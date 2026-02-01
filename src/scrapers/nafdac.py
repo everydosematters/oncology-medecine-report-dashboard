@@ -20,10 +20,9 @@ from .utils import (
     normalize_key,
     cell_text,
     load_source_cfg,
-    parse_nafdac_date,
     select_one_text,
     select_all_text,
-    parse_month_year
+    parse_date
 )
 
 
@@ -167,7 +166,7 @@ class NafDacScraper(BaseScraper):
             if not is_oncology:
                 continue
 
-            publish_date = parse_nafdac_date(publish_date)
+            publish_date = parse_date(publish_date)
 
             if self.start_date and publish_date:
                 # FIXME this is so ugly but yeah
@@ -202,7 +201,7 @@ class NafDacScraper(BaseScraper):
                     brand_name=parsed["brand_name"],
                     generic_name=parsed["generic_name"],
                     batch_number=parsed["batch_number"],
-                    expiry_date=parse_month_year(parsed["expiry_date"][0])
+                    expiry_date=parse_date(parsed["expiry_date"][0])
                 )
             )
             print("="*20)
