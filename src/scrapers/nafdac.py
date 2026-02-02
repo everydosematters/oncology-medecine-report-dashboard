@@ -181,8 +181,8 @@ class NafDacScraper(BaseScraper):
             record_id = self.make_record_id(
                 self.source_id,
                 detail_url,
-                publish_date,
-                parsed["title"],
+                publish_date,#FIXME why use the title?
+                parsed.get("title"),
                 manufacturer,
             )
            
@@ -191,18 +191,18 @@ class NafDacScraper(BaseScraper):
                     record_id=record_id,
                     source_id=self.source_id,
                     source_org=self.source_org,
-                    source_country=parsed["source_country"],
+                    source_country=parsed.get("source_country"),
                     source_url=detail_url,
                     publish_date=publish_date, 
                     manufacturer=manufacturer,
-                    title=parsed["title"],
+                    title=parsed.get("title"),
                     alert_type=alert_type,
                     product_name=parsed.get("product_name") or parsed.get("brand_name") or parsed.get("generic_name") or None,
                     scraped_at=datetime.now(timezone.utc),
-                    brand_name=parsed["brand_name"],
-                    generic_name=parsed["generic_name"],
-                    batch_number=parsed["batch_number"],
-                    expiry_date=parse_date(parsed["expiry_date"][0]),
+                    brand_name=parsed.get("brand_name"),
+                    generic_name=parsed.get("generic_name"),
+                    batch_number=parsed.get("batch_number"),
+                    expiry_date=parse_date(parsed.get("expiry_date", [None])[0]),
                     date_of_manufacture=parse_date(parsed.get("date_of_manufacture", [None])[0])
                 )
             )

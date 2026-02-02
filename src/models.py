@@ -15,11 +15,11 @@ class DrugAlert(pyd.BaseModel):
     # Identifiers / provenance (required)
     record_id: str
     source_id: str
-    source_country: str
     source_org: str
     source_url: str
 
     # Core content (optional but commonly filled)
+    source_country: Optional[str] = None
     title: Optional[str] = None
     manufacturer: Optional[str] = None
     alert_type: Optional[AlertType] = None
