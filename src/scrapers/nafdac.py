@@ -16,13 +16,15 @@ from .base import BaseScraper
 from .utils import (
     absolutize,
     clean_text,
-    extract_by_regex,
+    extract_title,
+    extract_brand_name_and_generic_name_from_title,
     normalize_key,
     cell_text,
     load_source_cfg,
     select_one_text,
     select_all_text,
-    parse_date
+    parse_date,
+    extract_country_from_title
 )
 
 
@@ -147,7 +149,6 @@ class NafDacScraper(BaseScraper):
                 # TODO handle when no link is provided, just return title
                 continue
 
-            title = clean_text(link_el.get_text(" ", strip=True))
             detail_url = absolutize(listing_url, link_el["href"])
 
             publish_date = None
@@ -181,7 +182,7 @@ class NafDacScraper(BaseScraper):
                 self.source_id,
                 detail_url,
                 publish_date,
-                title,
+                parsed["title"],
                 manufacturer,
             )
            
@@ -189,19 +190,20 @@ class NafDacScraper(BaseScraper):
                 DrugAlert(
                     record_id=record_id,
                     source_id=self.source_id,
-                    source_country=self.source_country, #FIXME use parsing of the title to know where it is reported
                     source_org=self.source_org,
-                    source_url=detail_scraped.get("final_url") or row["detail_url"],
-                    title=title,
+                    source_country=parsed["source_country"],
+                    source_url=detail_url,
                     publish_date=publish_date, 
                     manufacturer=manufacturer,
+                    title=parsed["title"],
                     alert_type=alert_type,
-                    notes=clean_text(row.select_one(fields["category"]).get_text(" ", strip=True)),
+                    product_name=parsed.get("product_name") or parsed.get("brand_name") or parsed.get("generic_name") or None,
                     scraped_at=datetime.now(timezone.utc),
                     brand_name=parsed["brand_name"],
                     generic_name=parsed["generic_name"],
                     batch_number=parsed["batch_number"],
-                    expiry_date=parse_date(parsed["expiry_date"][0])
+                    expiry_date=parse_date(parsed["expiry_date"][0]),
+                    date_of_manufacture=parse_date(parsed.get("date_of_manufacture", [None])[0])
                 )
             )
             print("="*20)
@@ -209,18 +211,16 @@ class NafDacScraper(BaseScraper):
             print("="*20)
         return results
 
-    def _parse_detail_page(self, html: str) -> Tuple(Dict[str, Any], bool):
+    def _parse_detail_page(self, html: str) -> Tuple[Dict[str, Any], bool]:
         soup = BeautifulSoup(html, "html.parser")
 
         title = select_one_text(soup, "h1")
-        # body = select_one_text(soup, "div.elementor-widget-container")
-        title = re.search(r"[-–]\s*(.+)", title).group(1)
         
-        m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title)
-        
-        brand_name = m.group(1).strip() if m else None
-        generic_name = m.group(2).strip() if m else None
-        
+        title = extract_title(title)
+
+        source_country = extract_country_from_title(title)
+
+        brand_name, generic_name = extract_brand_name_and_generic_name_from_title(title)
         
         body = select_all_text(soup, "p")
 
@@ -228,15 +228,16 @@ class NafDacScraper(BaseScraper):
             return {}, False
 
         
-        
+    
         product_specs = self._extract_product_specs(soup)
         return {
             "title": title,
-            "body_text": body,
             "brand_name": brand_name,
             "generic_name": generic_name,
+            "source_country": source_country,
             **product_specs
         }, True
+
 
     def standardize(self) -> List[DrugAlert]:
         listing_url = self.cfg["base_url"] # Base is sufficient gives all the listings in this case

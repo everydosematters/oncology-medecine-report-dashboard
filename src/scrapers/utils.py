@@ -133,3 +133,27 @@ def parse_date(value: Optional[str]) -> Optional[datetime]:
         return datetime.fromisoformat(value)
     except ValueError:
         return None
+
+def extract_title(title: str) -> str:
+    return re.search(r"[-–]\s*(.+)", title).group(1)
+
+
+def extract_country_from_title(title: str) -> Optional[str]:
+    if not title:
+        return None
+
+    m = re.search(r"\b(?:in)\s+([A-Z][A-Za-z\s]+)$", title.strip())
+    if not m:
+        return None
+
+    return m.group(1).strip()
+
+def extract_brand_name_and_generic_name_from_title(title: str) -> Tuple[Optional[str], Optional[str]]:
+    if not title:
+        return None, None
+
+    m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title.strip())
+    if not m:
+        return None, None
+
+    return m.group(1).strip(), m.group(2).strip()

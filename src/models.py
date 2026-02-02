@@ -34,6 +34,7 @@ class DrugAlert(pyd.BaseModel):
     generic_name: Optional[str] = None
     batch_number: Optional[list[str] | str] = None
     expiry_date: Optional[datetime] = None
+    date_of_manufacture: Optional[datetime] = None
 
 
     model_config = pyd.ConfigDict(
