@@ -45,6 +45,37 @@ class NafDacScraper(BaseScraper):
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
 
+    def _extract_product_specs_from_text(self, soup: BeautifulSoup) -> dict[str, list[str]]:
+        result = {}
+
+        LABEL_MAP = {
+            "product name": "product_name",
+            "batch no": "batch_number",
+            "expiry date": "expiry_date",
+            "manufacturing date": "manufacturing_date",
+            "stated manufacturer": "stated_manufacturer",
+        }
+
+        for strong in soup.find_all("strong"):
+            label = strong.get_text(" ", strip=True).rstrip(":").lower()
+            if label not in LABEL_MAP:
+                continue
+
+            value = strong.next_sibling
+            if not value:
+                continue
+
+            if isinstance(value, str):
+                value = value.strip()
+            else:
+                value = value.get_text(" ", strip=True)
+
+            if value:
+                key = LABEL_MAP[label]
+                result.setdefault(key, []).append(value)
+
+        return result
+
     def _parse_nafdac_table(self, table: Tag) -> dict[str, list[str]]:
         """
         Returns a normalized column-oriented dict, e.g.
@@ -56,48 +87,129 @@ class NafDacScraper(BaseScraper):
         "stated_manufacturer": [...],
         "date_of_manufacture": [...]
         }
+
+        Handles:
+        - 3+ column matrix tables (with header row)
+        - 2-column key/value tables
+        - rowspan/colspan tables (like the Avastin example)
         """
         result: dict[str, list[str]] = {}
 
-        # collect rows as list[list[str]]
-        rows: list[list[str]] = []
-        for tr in table.select("tr"):
-            cells = tr.find_all("td")
-            row = [cell_text(td) for td in cells]
-            row = [x for x in row if x]
-            if row:
-                rows.append(row)
+        # -------------------------------
+        # Helper: expand table to a full grid (rowspan/colspan aware)
+        # -------------------------------
+        def table_to_grid(tbl: Tag) -> list[list[str]]:
+            # Get all rows
+            trs = tbl.select("tr")
+            if not trs:
+                return []
 
+            # Determine expected column count from the widest row (respecting colspan)
+            def row_width(tr: Tag) -> int:
+                width = 0
+                for cell in tr.find_all(["td", "th"], recursive=False):
+                    colspan = int(cell.get("colspan", 1) or 1)
+                    width += colspan
+                return width
+
+            ncols = max(row_width(tr) for tr in trs) if trs else 0
+            if ncols == 0:
+                return []
+
+            grid: list[list[Optional[str]]] = []
+            # pending rowspans: col_idx -> (rows_remaining, value)
+            pending: dict[int, tuple[int, str]] = {}
+
+            for tr in trs:
+                row: list[Optional[str]] = [None] * ncols
+
+                # Prefill from pending rowspans
+                for col_idx, (remain, val) in list(pending.items()):
+                    if remain > 0:
+                        row[col_idx] = val
+                        pending[col_idx] = (remain - 1, val)
+                    if pending[col_idx][0] == 0:
+                        pending.pop(col_idx, None)
+
+                # Fill with this row's cells
+                col_ptr = 0
+                for cell in tr.find_all(["td", "th"], recursive=False):
+                    # Find next empty slot
+                    while col_ptr < ncols and row[col_ptr] is not None:
+                        col_ptr += 1
+                    if col_ptr >= ncols:
+                        break
+
+                    text = cell_text(cell)  # <-- your existing cleaner
+                    colspan = int(cell.get("colspan", 1) or 1)
+                    rowspan = int(cell.get("rowspan", 1) or 1)
+
+                    # Place across colspan
+                    for j in range(colspan):
+                        if col_ptr + j < ncols:
+                            row[col_ptr + j] = text
+
+                            # Register rowspan for each column this cell covers
+                            if rowspan > 1:
+                                pending[col_ptr + j] = (rowspan - 1, text)
+
+                    col_ptr += colspan
+
+                grid.append(row)
+
+            # Convert None -> "" and strip
+            out: list[list[str]] = []
+            for r in grid:
+                rr = [(c or "").strip() for c in r]
+                # keep the row if it has at least one non-empty cell
+                if any(rr):
+                    out.append(rr)
+
+            return out
+
+        rows = table_to_grid(table)
         if not rows:
             return result
 
+        ncols = len(rows[0])
+
         # -------------------------------
-        # CASE A: 3-column matrix table
+        # CASE A: matrix table (>= 3 columns)
+        # First row treated as headers
         # -------------------------------
-        if len(rows[0]) == 3:
+        if ncols >= 3:
             headers = [normalize_key(h) for h in rows[0]]
 
+            # Ensure we have keys
             for h in headers:
-                result.setdefault(h, [])
+                if h:
+                    result.setdefault(h, [])
 
             for r in rows[1:]:
-                if len(r) != 3:
-                    continue
+                # Pad/truncate to header length
+                if len(r) < ncols:
+                    r = r + [""] * (ncols - len(r))
+                r = r[:ncols]
+
                 for i, h in enumerate(headers):
-                    result[h].append(r[i])
+                    if not h:
+                        continue
+                    val = (r[i] or "").strip()
+                    if val:
+                        result[h].append(val)
 
             return result
 
         # -------------------------------
         # CASE B: 2-column key/value table
         # -------------------------------
-        if all(len(r) == 2 for r in rows):
+        if ncols == 2:
             for label, value in rows:
                 key = normalize_key(label)
-                if not key:
+                val = (value or "").strip()
+                if not key or not val:
                     continue
-                result.setdefault(key, []).append(value)
-
+                result.setdefault(key, []).append(val)
             return result
 
         # -------------------------------
@@ -112,7 +224,6 @@ class NafDacScraper(BaseScraper):
         """
         Extracts the product specification like batch number and name
         """
-        
         for table in soup[-1].find_all("table"):
             parsed_table = self._parse_nafdac_table(table)
             if parsed_table:
@@ -191,11 +302,11 @@ class NafDacScraper(BaseScraper):
                     record_id=record_id,
                     source_id=self.source_id,
                     source_org=self.source_org,
-                    source_country=parsed.get("source_country"),
+                    source_country=parsed.get("source_country") or "Nigeria",
                     source_url=detail_url,
                     publish_date=publish_date, 
                     manufacturer=manufacturer,
-                    title=parsed.get("title"),
+                    notes=parsed.get("title"),
                     alert_type=alert_type,
                     product_name=parsed.get("product_name") or parsed.get("brand_name") or parsed.get("generic_name") or None,
                     scraped_at=datetime.now(timezone.utc),
@@ -227,9 +338,12 @@ class NafDacScraper(BaseScraper):
         if not self._is_oncology(body):
             return {}, False
 
-        
+        if soup.find("table"):
+            product_specs = self._extract_product_specs(soup)
+        else:
+
+            product_specs = self._extract_product_specs_from_text(soup)
     
-        product_specs = self._extract_product_specs(soup)
         return {
             "title": title,
             "brand_name": brand_name,

@@ -20,7 +20,6 @@ class DrugAlert(pyd.BaseModel):
 
     # Core content (optional but commonly filled)
     source_country: Optional[str] = None
-    title: Optional[str] = None
     manufacturer: Optional[str] = None
     alert_type: Optional[AlertType] = None
 

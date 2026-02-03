@@ -35,13 +35,63 @@ def cell_text(cell: Tag) -> str:
 
 def normalize_key(label: str) -> str:
     """
-    Turn table labels into consistent snake-ish keys.
-    e.g. "Stated Manufacturer" -> "stated_manufacturer"
+    Normalize table/header labels into canonical keys used by the pipeline.
     """
-    label = clean_text(label).rstrip(":")
-    label = re.sub(r"[^\w\s]+", "", label)  # drop punctuation
-    label = re.sub(r"\s+", "_", label).lower()
-    return label
+    if not label:
+        return ""
+
+    # --- basic cleanup ---
+    label = clean_text(label)
+    label = label.rstrip(":")
+    label = re.sub(r"[^\w\s]+", " ", label)   # drop punctuation
+    label = re.sub(r"\s+", " ", label).lower()
+
+    # --- canonical mappings ---
+    CANONICAL_MAP = {
+        # product
+        "product": "product_name",
+        "product name": "product_name",
+        "name of product": "product_name",
+
+        # batch / lot
+        "batch": "batch_number",
+        "batch no": "batch_number",
+        "batch number": "batch_number",
+        "batch number ": "batch_number",
+        "lot": "batch_number",
+        "lot no": "batch_number",
+        "lot number": "batch_number",
+
+        # expiry
+        "expiry": "expiry_date",
+        "expiry date": "expiry_date",
+        "expiration date": "expiry_date",
+        "exp date": "expiry_date",
+
+        # manufacture
+        "manufacturing date": "date_of_manufacture",
+        "manufacture date": "date_of_manufacture",
+        "date of manufacture": "date_of_manufacture",
+        "mfg date": "date_of_manufacture",
+
+        # manufacturer
+        "manufacturer": "stated_manufacturer",
+        "stated manufacturer": "stated_manufacturer",
+        "stated product manufacturer": "stated_manufacturer",
+        "product manufacturer": "stated_manufacturer",
+    }
+
+    # exact match first
+    if label in CANONICAL_MAP:
+        return CANONICAL_MAP[label]
+
+    # partial / contains-based matching (very important)
+    for key, canonical in CANONICAL_MAP.items():
+        if key in label:
+            return canonical
+
+    # fallback: snake_case the cleaned label
+    return re.sub(r"\s+", "_", label)
 
 
 def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
