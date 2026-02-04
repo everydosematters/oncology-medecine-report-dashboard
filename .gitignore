@@ -172,3 +172,6 @@ seed/production/profiles_hub.*
 
 # database
 **/*.db
+
+# csv files
+**/*.csv
