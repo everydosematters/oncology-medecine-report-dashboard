@@ -21,8 +21,7 @@ from .utils import (
     select_one_text,
     select_all_text,
     parse_date,
-    extract_country_from_title,
-    canonical_key_for_label,
+    extract_country_from_title
 )
 
 
@@ -47,14 +46,14 @@ class NafDacScraper(BaseScraper):
         return any(k.lower() in hay for k in keywords)
         # FIXME do a more specific filter some drugs cause cancer and are being trapped
 
-    def _extract_product_specs_from_text(body: BeautifulSoup) -> dict[str, list[str]]:
+    def _extract_product_specs_from_text(self, *soup: BeautifulSoup) -> dict[str, list[str]]:
         """Extract specs from a table."""
 
         result: dict[str, list[str]] = {}
 
-        for strong in body.find_all("strong"):
+        for strong in soup[-1].find_all("strong"):
             raw_label = strong.get_text(" ", strip=True)
-            key = canonical_key_for_label(raw_label)
+            key = normalize_key(raw_label, return_none=True)
             if not key:
                 continue
 
@@ -66,6 +65,7 @@ class NafDacScraper(BaseScraper):
                 sib.strip() if isinstance(sib, str) else sib.get_text(" ", strip=True)
             )
             value = " ".join(value.split())
+            #FIXME ['Phesgo® 600mg/600mg/10ml injection', '.']
             if value:
                 result.setdefault(key, []).append(value)
 
