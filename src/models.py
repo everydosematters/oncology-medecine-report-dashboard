@@ -35,7 +35,6 @@ class DrugAlert(pyd.BaseModel):
     expiry_date: Optional[datetime] = None
     date_of_manufacture: Optional[datetime] = None
 
-
     model_config = pyd.ConfigDict(
         extra="forbid",  # catch accidental fields like body_text if model doesn't include it
         validate_assignment=True,

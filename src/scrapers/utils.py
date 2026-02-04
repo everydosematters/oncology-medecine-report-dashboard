@@ -27,11 +27,13 @@ def clean_text(s: Optional[str]) -> Optional[str]:
     s = re.sub(r"\s+", " ", s).strip()
     return s or None
 
+
 def cell_text(cell: Tag) -> str:
     """
     Joins all <p> or nested text inside a cell into one string.
     """
     return clean_text(cell.get_text(" ", strip=True))
+
 
 def normalize_key(label: str) -> str:
     """
@@ -43,7 +45,7 @@ def normalize_key(label: str) -> str:
     # --- basic cleanup ---
     label = clean_text(label)
     label = label.rstrip(":")
-    label = re.sub(r"[^\w\s]+", " ", label)   # drop punctuation
+    label = re.sub(r"[^\w\s]+", " ", label)  # drop punctuation
     label = re.sub(r"\s+", " ", label).lower()
 
     # --- canonical mappings ---
@@ -52,7 +54,6 @@ def normalize_key(label: str) -> str:
         "product": "product_name",
         "product name": "product_name",
         "name of product": "product_name",
-
         # batch / lot
         "batch": "batch_number",
         "batch no": "batch_number",
@@ -61,19 +62,16 @@ def normalize_key(label: str) -> str:
         "lot": "batch_number",
         "lot no": "batch_number",
         "lot number": "batch_number",
-
         # expiry
         "expiry": "expiry_date",
         "expiry date": "expiry_date",
         "expiration date": "expiry_date",
         "exp date": "expiry_date",
-
         # manufacture
         "manufacturing date": "date_of_manufacture",
         "manufacture date": "date_of_manufacture",
         "date of manufacture": "date_of_manufacture",
         "mfg date": "date_of_manufacture",
-
         # manufacturer
         "manufacturer": "stated_manufacturer",
         "stated manufacturer": "stated_manufacturer",
@@ -101,6 +99,7 @@ def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
     if not el:
         return None
     return clean_text(el.get_text(" ", strip=True))
+
 
 def select_all_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
     """
@@ -184,6 +183,7 @@ def parse_date(value: Optional[str]) -> Optional[datetime]:
     except ValueError:
         return None
 
+
 def extract_title(title: str) -> str:
     return re.search(r"[-–]\s*(.+)", title).group(1)
 
@@ -198,7 +198,10 @@ def extract_country_from_title(title: str) -> Optional[str]:
 
     return m.group(1).strip()
 
-def extract_brand_name_and_generic_name_from_title(title: str) -> Tuple[Optional[str], Optional[str]]:
+
+def extract_brand_name_and_generic_name_from_title(
+    title: str,
+) -> Tuple[Optional[str], Optional[str]]:
     if not title:
         return None, None
 
@@ -207,3 +210,141 @@ def extract_brand_name_and_generic_name_from_title(title: str) -> Tuple[Optional
         return None, None
 
     return m.group(1).strip(), m.group(2).strip()
+
+
+def normalize_label(label: str) -> str:
+    """
+    Normalize label text so many variations collapse to the same form.
+    """
+    label = (label or "").strip().lower()
+    label = label.rstrip(":")
+    label = re.sub(r"\(.*?\)", "", label)  # drop parentheticals
+    label = re.sub(r"[^\w\s]", " ", label)  # punctuation -> space
+    label = re.sub(r"\s+", " ", label).strip()  # collapse spaces
+    return label
+
+
+# Canonical keys you want in output
+CANONICAL = {
+    "product_name": [
+        "product name",
+        "name of product",
+        "product",
+        "name",
+    ],
+    "batch_number": [
+        "batch number",
+        "batch no",
+        "batch",
+        "lot number",
+        "lot no",
+        "lot",
+    ],
+    "expiry_date": [
+        "expiry date",
+        "expiration date",
+        "exp date",
+        "expiry",
+        "exp",
+        "best before",
+    ],
+    "manufacturing_date": [
+        "manufacturing date",
+        "date of manufacture",
+        "mfg date",
+        "manufactured on",
+        "manufacture date",
+    ],
+    "stated_manufacturer": [
+        "stated manufacturer",
+        "manufacturer",
+        "manufactured by",
+        "marketing authorization holder",
+        "mah",
+    ],
+}
+
+# Build a lookup dict: normalized alias -> canonical key
+ALIAS_TO_KEY = {
+    normalize_label(alias): key
+    for key, aliases in CANONICAL.items()
+    for alias in aliases
+}
+
+
+def canonical_key_for_label(label_text: str) -> Optional[str]:
+    """
+    Return the canonical key for a raw label, or None if unknown.
+    """
+    norm = normalize_label(label_text)
+    return ALIAS_TO_KEY.get(norm)
+
+
+def table_to_grid(tbl: Tag) -> list[list[str]]:
+    # Get all rows
+    trs = tbl.select("tr")
+    if not trs:
+        return []
+
+    # Determine expected column count from the widest row (respecting colspan)
+    def row_width(tr: Tag) -> int:
+        width = 0
+        for cell in tr.find_all(["td", "th"], recursive=False):
+            colspan = int(cell.get("colspan", 1) or 1)
+            width += colspan
+        return width
+
+    ncols = max(row_width(tr) for tr in trs) if trs else 0
+    if ncols == 0:
+        return []
+
+    grid: list[list[Optional[str]]] = []
+    # pending rowspans: col_idx -> (rows_remaining, value)
+    pending: dict[int, tuple[int, str]] = {}
+
+    for tr in trs:
+        row: list[Optional[str]] = [None] * ncols
+
+        # Prefill from pending rowspans
+        for col_idx, (remain, val) in list(pending.items()):
+            if remain > 0:
+                row[col_idx] = val
+                pending[col_idx] = (remain - 1, val)
+            if pending[col_idx][0] == 0:
+                pending.pop(col_idx, None)
+
+        # Fill with this row's cells
+        col_ptr = 0
+        for cell in tr.find_all(["td", "th"], recursive=False):
+            # Find next empty slot
+            while col_ptr < ncols and row[col_ptr] is not None:
+                col_ptr += 1
+            if col_ptr >= ncols:
+                break
+
+            text = cell_text(cell)  # <-- your existing cleaner
+            colspan = int(cell.get("colspan", 1) or 1)
+            rowspan = int(cell.get("rowspan", 1) or 1)
+
+            # Place across colspan
+            for j in range(colspan):
+                if col_ptr + j < ncols:
+                    row[col_ptr + j] = text
+
+                    # Register rowspan for each column this cell covers
+                    if rowspan > 1:
+                        pending[col_ptr + j] = (rowspan - 1, text)
+
+            col_ptr += colspan
+
+        grid.append(row)
+
+    # Convert None -> "" and strip
+    out: list[list[str]] = []
+    for r in grid:
+        rr = [(c or "").strip() for c in r]
+        # keep the row if it has at least one non-empty cell
+        if any(rr):
+            out.append(rr)
+
+    return out

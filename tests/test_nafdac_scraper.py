@@ -30,7 +30,12 @@ def sources_path(tmp_path: Path) -> str:
                     "category": "td:nth-child(4)",
                     "company": "td:nth-child(5)",
                 },
-                "pagination": {"type": "path", "pattern": "page/{page}/", "start": 1, "max_pages": 1},
+                "pagination": {
+                    "type": "path",
+                    "pattern": "page/{page}/",
+                    "start": 1,
+                    "max_pages": 1,
+                },
             },
             "detail_page": {
                 "title_selector": "h1.entry-title",
@@ -49,9 +54,18 @@ def sources_path(tmp_path: Path) -> str:
             },
             "filters": {
                 "require_oncology": True,
-                "oncology_keywords": ["oncology", "cancer", "tumour", "chemotherapy", "immunotherapy"],
+                "oncology_keywords": [
+                    "oncology",
+                    "cancer",
+                    "tumour",
+                    "chemotherapy",
+                    "immunotherapy",
+                ],
             },
-            "defaults": {"therapeutic_category": "Oncology", "alert_type": "Recall / Safety Alert"},
+            "defaults": {
+                "therapeutic_category": "Oncology",
+                "alert_type": "Recall / Safety Alert",
+            },
         }
     }
 
@@ -66,7 +80,10 @@ def test_nafdac_listing_urls_pagination(sources_path: str) -> None:
 
     assert len(urls) == 1
 
-def test_nafdac_standardize_end_to_end_with_mocked_scrape(monkeypatch, sources_path: str) -> None:
+
+def test_nafdac_standardize_end_to_end_with_mocked_scrape(
+    monkeypatch, sources_path: str
+) -> None:
     """
     End-to-end sanity check:
     - listing page is table/tbody/tr
