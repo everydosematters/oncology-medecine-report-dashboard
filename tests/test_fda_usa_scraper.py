@@ -26,11 +26,23 @@ def sources_path(tmp_path: Path) -> str:
                 "link_selector": "td:nth-child(2) a",
                 # Date column may include a <time> (often does)
                 "date_selector": "td:nth-child(1) time",
-                "pagination": {"type": "query_param", "param": "page", "start": 0, "max_pages": 5},
+                "pagination": {
+                    "type": "query_param",
+                    "param": "page",
+                    "start": 0,
+                    "max_pages": 5,
+                },
             },
             "filters": {
                 "require_oncology": True,
-                "oncology_keywords": ["oncology", "cancer", "tumor", "chemotherapy", "immunotherapy", "malignant"],
+                "oncology_keywords": [
+                    "oncology",
+                    "cancer",
+                    "tumor",
+                    "chemotherapy",
+                    "immunotherapy",
+                    "malignant",
+                ],
             },
             "defaults": {"therapeutic_category": "Oncology", "alert_type": "Recall"},
         }

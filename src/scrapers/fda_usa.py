@@ -163,7 +163,6 @@ class FDAUSAScraper(BaseScraper):
                 row["manufacturer_stated"],
             )
 
-
             records.append(
                 DrugAlert(
                     record_id=record_id,
@@ -172,7 +171,7 @@ class FDAUSAScraper(BaseScraper):
                     source_org=self.source_org,
                     source_url=row["detail_url"],
                     title=row["brand_name"],
-                    product_name=row["brand_name"],  
+                    product_name=row["brand_name"],
                     publish_date=row["publish_date"],
                     manufacturer_stated=row["manufacturer_stated"],
                     manufactured_for=None,
@@ -180,9 +179,8 @@ class FDAUSAScraper(BaseScraper):
                     reason=row["reason"],
                     alert_type=defaults.get("alert_type"),
                     notes=row["description"],
-                    scraped_at=datetime.now(timezone.utc), 
+                    scraped_at=datetime.now(timezone.utc),
                 )
             )
-
 
         return records

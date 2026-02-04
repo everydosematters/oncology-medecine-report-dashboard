@@ -3,231 +3,277 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
+import re
 
 from src.models import DrugAlert
 
 from .base import BaseScraper
 from .utils import (
-    load_source_cfg,
-    clean_text,
-    select_one_text,
     absolutize,
-    extract_by_regex,
-    parse_nafdac_date
+    clean_text,
+    extract_title,
+    extract_brand_name_and_generic_name_from_title,
+    normalize_key,
+    table_to_grid,
+    select_one_text,
+    select_all_text,
+    parse_date,
+    extract_country_from_title,
+    canonical_key_for_label,
 )
 
 
 class NafDacScraper(BaseScraper):
-    """
-    Site-specific scraper class for:
-      https://nafdac.gov.ng/category/recalls-and-alerts/
+    def __init__(self, config: dict, start_date: datetime = None) -> None:
+        """Init the parent and subclass."""
 
-    - Inherits BaseScraper (shared fetch + sqlite upsert)
-    - Reads selectors/defaults from sources.json (NAFDAC_NG key)
-    - Implements standardize() to output DrugAlert rows
-    """
-
-    def __init__(self, sources_path: str = "config/sources.json", start_date: Optional[datetime] = None) -> None:
-        self.cfg = load_source_cfg(sources_path, "NAFDAC_NG")
-        base_url = self.cfg["base_url"]
-        req_args = self.cfg.get("request") or {}
-        super().__init__(base_url, args=req_args)
-
+        self.cfg = config
+        super().__init__(
+            self.cfg["base_url"],
+            args=self.cfg.get("request") or {},
+            start_date=start_date,
+        )
         self.source_id = self.cfg["source_id"]
-        self.source_country = self.cfg.get("source_country")
-        self.source_org = self.cfg.get("source_org")
-        self.start_date = start_date
+        self.source_org = self.cfg["source_org"]
 
-    def _is_oncology(self, body_text: str) -> bool:
-        filters = self.cfg.get("filters") or {}
-        if not filters.get("require_oncology", False):
-            return True
-        keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
-        hay = (body_text or "").lower()
-        return any(k.lower() in hay for k in keywords) #FIXME use regular expression it is faster
+    def _is_oncology(self, text: str) -> bool:
+        """Determine if drug is oncological."""
 
-    def _listing_urls(self) -> List[str]:
+        keywords = self.cfg["filters"]["oncology_keywords"] or ["oncology", "cancer"]
+        hay = (text or "").lower()
+        return any(k.lower() in hay for k in keywords)
+        # FIXME do a more specific filter some drugs cause cancer and are being trapped
+
+    def _extract_product_specs_from_text(body: BeautifulSoup) -> dict[str, list[str]]:
+        """Extract specs from a table."""
+
+        result: dict[str, list[str]] = {}
+
+        for strong in body.find_all("strong"):
+            raw_label = strong.get_text(" ", strip=True)
+            key = canonical_key_for_label(raw_label)
+            if not key:
+                continue
+
+            sib = strong.next_sibling
+            if not sib:
+                continue
+
+            value = (
+                sib.strip() if isinstance(sib, str) else sib.get_text(" ", strip=True)
+            )
+            value = " ".join(value.split())
+            if value:
+                result.setdefault(key, []).append(value)
+
+        return result
+
+    def _parse_nafdac_table(self, table: Tag) -> dict[str, list[str]]:
+        """Returns a normalized column-oriented dict"""
+
+        result: dict[str, list[str]] = {}
+
+        rows = table_to_grid(table)
+        if not rows:
+            return result
+
+        ncols = len(rows[0])
+
+        # CASE A: matrix table (>= 3 columns)
+        if ncols >= 3:
+            headers = [normalize_key(h) for h in rows[0]]
+
+            # Ensure we have keys
+            for h in headers:
+                if h:
+                    result.setdefault(h, [])
+
+            for r in rows[1:]:
+                # Pad/truncate to header length
+                if len(r) < ncols:
+                    r = r + [""] * (ncols - len(r))
+                r = r[:ncols]
+
+                for i, h in enumerate(headers):
+                    if not h:
+                        continue
+                    val = (r[i] or "").strip()
+                    if val:
+                        result[h].append(val)
+
+            return result
+
+        # CASE B: 2-column key/value table
+        if ncols == 2:
+            for label, value in rows:
+                key = normalize_key(label)
+                val = (value or "").strip()
+                if not key or not val:
+                    continue
+                result.setdefault(key, []).append(val)
+            return result
+        # fallback
+        return result
+
+    def _extract_product_specs(
+        self,
+        *soup: BeautifulSoup,
+    ) -> dict:
+        """
+        Extracts the product specification like batch number and name
+        """
+        for table in soup[-1].find_all("table"):
+            parsed_table = self._parse_nafdac_table(table)
+            if parsed_table:
+                return parsed_table
+        return {}
+
+    def _parse_listing_page(self, html: str, listing_url: str) -> List[DrugAlert]:
+        """
+        Reads table rows from tbody and extracts all necessary info
+          - publish_date (col 1)
+          - title + detail_url (col 2)
+          - alert_type/category/company (optional, from config mapping)
+        """
         listing_cfg = self.cfg.get("listing") or {}
-        pag = listing_cfg.get("pagination") or {}
-        base = self.cfg["base_url"]
-
-        if not pag:
-            return [base]
-
-        if pag.get("type") != "path":
-            return [base]
-
-        pattern = pag["pattern"]  # e.g. "page/{page}/"
-        start = int(pag.get("start", 1))
-        max_pages = int(pag.get("max_pages", 1))
-
-        urls: List[str] = []
-        for p in range(start, start + max_pages):
-            suffix = pattern.format(page=p)
-            if base.endswith("/"):
-                urls.append(base + suffix)
-            else:
-                urls.append(base + "/" + suffix)
-        return urls
-
-    def _parse_listing_page(self, html: str, listing_url: str):
-        listing_cfg = self.cfg.get("listing") or {}
-        item_sel = listing_cfg.get("item_selector")  # "table tbody tr"
-        link_sel = listing_cfg.get("link_selector")  # "td:nth-child(2) a.ninja_table_permalink"
-        date_sel = listing_cfg.get("date_selector")  # "td:nth-child(1)"
-        fields_sel = listing_cfg.get("fields") or {}
+        item_sel = listing_cfg.get("item_selector")
+        link_sel = listing_cfg.get("link_selector")
+        date_sel = listing_cfg.get("date_selector")
+        fields = listing_cfg.get("fields") or {}
 
         soup = BeautifulSoup(html, "html.parser")
         rows = soup.select(item_sel) if item_sel else []
 
-        out = []
+        results: List[DrugAlert] = []
+
         for row in rows:
+            # First check that the alert is a drug, if not move on
+            category = (
+                clean_text(row.select_one(fields["category"]).get_text(" ", strip=True))
+                or ""
+            )
+            if not re.search(r"drug", category, re.IGNORECASE):
+                # skip this if it is not a drug
+                continue
+
             link_el = row.select_one(link_sel) if link_sel else None
             if not link_el or not link_el.get("href"):
+                # TODO handle when no link is provided, just return title
                 continue
 
             detail_url = absolutize(listing_url, link_el["href"])
-            title = clean_text(link_el.get_text(" ", strip=True))
 
             publish_date = None
             if date_sel:
                 d_el = row.select_one(date_sel)
-                if d_el:
-                    publish_date = clean_text(d_el.get_text(" ", strip=True))
+                publish_date = (
+                    clean_text(d_el.get_text(" ", strip=True)) if d_el else None
+                )
 
-            # Extract extra columns from listing row
-            listing_alert_type = None
-            if fields_sel.get("alert_type"):
-                a_el = row.select_one(fields_sel["alert_type"])
-                listing_alert_type = clean_text(a_el.get_text(" ", strip=True)) if a_el else None
+            # standardize
+            detail_scraped = self.scrape(detail_url)
+            parsed, is_oncology = self._parse_detail_page(detail_scraped["html"])
 
-            listing_category = None
-            if fields_sel.get("category"):
-                c_el = row.select_one(fields_sel["category"])
-                listing_category = clean_text(c_el.get_text(" ", strip=True)) if c_el else None
-
-            listing_company = None
-            if fields_sel.get("company"):
-                co_el = row.select_one(fields_sel["company"])
-                listing_company = clean_text(co_el.get_text(" ", strip=True)) if co_el else None
-
-            out.append(
-                {
-                    "detail_url": detail_url,
-                    "title": title,
-                    "publish_date": publish_date,
-                    "alert_type": listing_alert_type,
-                    "category": listing_category,
-                    "manufacturer_stated": listing_company,
-                }
-            )
-
-        # de-dupe by detail_url preserving order
-        seen = set()
-        deduped = []
-        for r in out:
-            if r["detail_url"] in seen:
+            if not is_oncology:
                 continue
-            seen.add(r["detail_url"])
-            deduped.append(r)
 
-        return deduped
-
-
-
-    def _parse_detail_page(self, html: str) -> Dict[str, Optional[str]]:
-        dcfg = self.cfg.get("detail_page") or {}
-        soup = BeautifulSoup(html, "html.parser")
-
-        title = select_one_text(soup, dcfg.get("title_selector", ""))
-        body = select_one_text(soup, dcfg.get("body_selector", ""))
-        publish_date = select_one_text(soup, dcfg.get("publish_date_selector", ""))
-
-        extracted: Dict[str, Optional[str]] = {}
-        for field_name, rule in (dcfg.get("fields") or {}).items():
-            if (rule or {}).get("strategy") == "regex":
-                extracted[field_name] = extract_by_regex(body or "", rule.get("pattern", ""))
-
-        return {"title": title, "body_text": body, "publish_date": publish_date, **extracted}
-
-    def standardize(self) -> List[DrugAlert]:
-        defaults = self.cfg.get("defaults") or {}
-        records = []
-
-        for listing_url in self._listing_urls():
-            listing_scraped = self.scrape(listing_url)
-
-            rows = self._parse_listing_page(
-                html=listing_scraped["html"],
-                listing_url=listing_scraped.get("final_url") or listing_url,
-            )
-            i = 1
-            for row in rows:
-                # Scrape detail page (your “scrape again” requirement)
-                if row['category'] not in ['Drugs', 'Drug', 'Drugs & Biological']:
-                    continue
-                detail_scraped = self.scrape(row["detail_url"])
-                parsed = self._parse_detail_page(detail_scraped["html"])
-
-                # Filter based on the DETAIL page content (not listing)
-                body_text = parsed.get("body_text") or detail_scraped.get("text") or ""
-                if not self._is_oncology(body_text):
-                    continue
-
-                title = parsed.get("title") or row.get("title")
-                raw_date = parsed.get("publish_date") or row.get("publish_date")
-                publish_date = parse_nafdac_date(raw_date)
-                if self.start_date and self.start_date > publish_date:
-                    print(publish_date)
-                    # break we reached the amount of record we need
+            publish_date = parse_date(publish_date)
+            if self.start_date and publish_date:
+                # FIXME this is so ugly but yeah
+                if self.start_date > publish_date:
                     break
 
-
-                manufacturer_stated = parsed.get("manufacturer_stated") or row.get("manufacturer_stated")
-                reason = parsed.get("reason")
-
-                # Prefer listing alert type if present; else default
-                alert_type = row.get("alert_type") or defaults.get("alert_type")
-
-                record_id = self.make_record_id(
-                    self.source_id,
-                    detail_scraped.get("final_url") or row["detail_url"],
-                    title or "",
-                    publish_date or "",
-                    manufacturer_stated or "",
+            manufacturer = clean_text(
+                row.select_one(fields["company"]).get_text(" ", strip=True)
+            )
+            alert_type = (
+                clean_text(
+                    row.select_one(fields["alert_type"]).get_text(" ", strip=True)
                 )
+                if fields.get("alert_type") and row.select_one(fields["alert_type"])
+                else None
+            )
 
-                print("="*10)
-                print(record_id)
-                print("="*10)
+            record_id = self.make_record_id(
+                self.source_id,
+                detail_url,
+                publish_date,  # FIXME why use the title?
+                parsed.get("title"),
+                manufacturer,
+            )
 
-                records.append(
-                    DrugAlert(
-                        record_id=record_id,
-                        source_id=self.source_id,
-                        source_country=self.source_country,
-                        source_org=self.source_org,
-                        source_url=detail_scraped.get("final_url") or row["detail_url"],
-
-                        # REQUIRED in your model (even if Optional[str])
-                        product_name=title,
-
-                        title=title,
-                        publish_date=publish_date,
-                        manufacturer_stated=manufacturer_stated,
-                        manufactured_for=None,
-                        therapeutic_category=defaults.get("therapeutic_category"),
-                        reason=reason,
-                        alert_type=alert_type,
-                        notes=row.get("category"),   # optional: store category ("Food"/"Drugs")
-                        body_text=body_text,
-
-                        scraped_at=datetime.now(timezone.utc),
-                    )
+            results.append(
+                DrugAlert(
+                    record_id=record_id,
+                    source_id=self.source_id,
+                    source_org=self.source_org,
+                    source_country=parsed.get("source_country") or "Nigeria",
+                    source_url=detail_url,
+                    publish_date=publish_date,
+                    manufacturer=manufacturer,
+                    notes=parsed.get("title"),
+                    alert_type=alert_type,
+                    product_name=parsed.get("product_name")
+                    or parsed.get("brand_name")
+                    or parsed.get("generic_name")
+                    or None,
+                    scraped_at=datetime.now(timezone.utc),
+                    brand_name=parsed.get("brand_name"),
+                    generic_name=parsed.get("generic_name"),
+                    batch_number=parsed.get("batch_number"),
+                    expiry_date=parse_date(parsed.get("expiry_date", [None])[0]),
+                    date_of_manufacture=parse_date(
+                        parsed.get("date_of_manufacture", [None])[0]
+                    ),
                 )
-                i +=1
+            )
+            print("=" * 20)
+            print(results)
+            print("=" * 20)
+        return results
+
+    def _parse_detail_page(self, html: str) -> Tuple[Dict[str, Any], bool]:
+        soup = BeautifulSoup(html, "html.parser")
+
+        title = select_one_text(soup, "h1")
+
+        title = extract_title(title)
+
+        source_country = extract_country_from_title(title)
+
+        brand_name, generic_name = extract_brand_name_and_generic_name_from_title(title)
+
+        body = select_all_text(soup, "p")
+
+        if not self._is_oncology(body):
+            return {}, False
+
+        if soup.find("table"):
+            product_specs = self._extract_product_specs(soup)
+        else:
+
+            product_specs = self._extract_product_specs_from_text(soup)
+
+        return {
+            "title": title,
+            "brand_name": brand_name,
+            "generic_name": generic_name,
+            "source_country": source_country,
+            **product_specs,
+        }, True
+
+    def standardize(self) -> List[DrugAlert]:
+        listing_url = self.cfg[
+            "base_url"
+        ]  # Base is sufficient gives all the listings in this case
+
+        listing_scraped = self.scrape(listing_url)
+        records = self._parse_listing_page(
+            html=listing_scraped["html"],
+            listing_url=listing_scraped.get("final_url") or listing_url,
+        )
 
         return records

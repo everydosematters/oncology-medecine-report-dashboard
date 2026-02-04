@@ -48,7 +48,6 @@
   },
   "NAFDAC_NG": {
     "source_id": "NAFDAC_NG",
-    "source_country": "Nigeria",
     "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
     "base_url": "https://nafdac.gov.ng/category/recalls-and-alerts/",
     "type": "listing_with_detail_pages",
@@ -65,31 +64,14 @@
         "alert_type": "td:nth-child(3)",
         "category": "td:nth-child(4)",
         "company": "td:nth-child(5)"
-      },
-      "pagination": {
-        "type": "path",
-        "pattern": "page/{page}/",
-        "start": 1,
-        "max_pages": 1
       }
     },
     "detail_page": {
       "title_selector": "h1.entry-title",
       "body_selector": "div.entry-content",
-      "publish_date_selector": "time.entry-date",
-      "fields": {
-        "manufacturer_stated": {
-          "strategy": "regex",
-          "pattern": "(manufacturer|manufactured by)[:\\s]+(.+)"
-        },
-        "reason": {
-          "strategy": "regex",
-          "pattern": "(reason|cause|issue)[:\\s]+(.+)"
-        }
-      }
+      "publish_date_selector": "time.entry-date"
     },
     "filters": {
-      "require_oncology": true,
       "oncology_keywords": [
         "oncology",
         "cancer",
