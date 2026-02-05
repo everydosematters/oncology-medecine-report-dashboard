@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 import pytest
 
-from src.scrapers.fda_usa import FDAUSAScraper
+from src.scrapers.fdausa import FDAUSAScraper
 
 
 @pytest.fixture

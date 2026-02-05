@@ -3,73 +3,18 @@
     "source_id": "FDA_US",
     "source_country": "United States",
     "source_org": "U.S. Food and Drug Administration (FDA)",
-    "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
-    "type": "listing_with_detail_pages",
+    "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/datatables-data",
     "request": {
       "headers": {
-        "Accept-Language": "en-US,en;q=0.9"
+        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
+        "Accept": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
       }
     },
-    "listing": {
-      "item_selector": "table#datatable tbody tr",
-      "link_selector": "td:nth-child(2) a",
-      "date_selector": "td:nth-child(1) time"
-    },
-    "detail_page": {
-      "title_selector": "h1",
-      "body_selector": "div.field--name-body",
-      "publish_date_selector": "time",
-      "fields": {
-        "manufacturer_stated": {
-          "strategy": "regex",
-          "pattern": "(manufacturer|company)[:\\s]+(.+)"
-        },
-        "reason": {
-          "strategy": "regex",
-          "pattern": "(reason for recall|issue|problem)[:\\s]+(.+)"
-        }
-      }
-    },
-    "filters": {
-      "require_oncology": true,
-      "oncology_keywords": [
-        "oncology",
-        "cancer",
-        "tumor",
-        "chemotherapy",
-        "immunotherapy",
-        "malignant"
-      ]
-    },
-    "defaults": {
-      "therapeutic_category": "Oncology",
-      "alert_type": "Recall"
-    }
-  },
-  "NAFDAC_NG": {
-    "source_id": "NAFDAC_NG",
-    "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
-    "base_url": "https://nafdac.gov.ng/category/recalls-and-alerts/",
-    "type": "listing_with_detail_pages",
-    "request": {
-      "headers": {
-        "Accept-Language": "en-GB,en;q=0.9"
-      }
-    },
-    "listing": {
-      "item_selector": "table tbody tr",
-      "link_selector": "td:nth-child(2) a.ninja_table_permalink",
-      "date_selector": "td:nth-child(1)",
-      "fields": {
-        "alert_type": "td:nth-child(3)",
-        "category": "td:nth-child(4)",
-        "company": "td:nth-child(5)"
-      }
-    },
-    "detail_page": {
-      "title_selector": "h1.entry-title",
-      "body_selector": "div.entry-content",
-      "publish_date_selector": "time.entry-date"
+    "params": {
+      "_format": "xlsx",
+      "search_api_fulltext": "",
+      "field_regulated_product_field": "2312",
+      "field_terminated_recall": "All"
     },
     "filters": {
       "oncology_keywords": [
@@ -80,9 +25,44 @@
         "immunotherapy"
       ]
     },
-    "defaults": {
-      "therapeutic_category": "Oncology",
-      "alert_type": "Recall / Safety Alert"
+    "NAFDAC_NG": {
+      "source_id": "NAFDAC_NG",
+      "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
+      "base_url": "https://nafdac.gov.ng/category/recalls-and-alerts/",
+      "type": "listing_with_detail_pages",
+      "request": {
+        "headers": {
+          "Accept-Language": "en-GB,en;q=0.9"
+        }
+      },
+      "listing": {
+        "item_selector": "table tbody tr",
+        "link_selector": "td:nth-child(2) a.ninja_table_permalink",
+        "date_selector": "td:nth-child(1)",
+        "fields": {
+          "alert_type": "td:nth-child(3)",
+          "category": "td:nth-child(4)",
+          "company": "td:nth-child(5)"
+        }
+      },
+      "detail_page": {
+        "title_selector": "h1.entry-title",
+        "body_selector": "div.entry-content",
+        "publish_date_selector": "time.entry-date"
+      },
+      "filters": {
+        "oncology_keywords": [
+          "oncology",
+          "cancer",
+          "tumour",
+          "chemotherapy",
+          "immunotherapy"
+        ]
+      },
+      "defaults": {
+        "therapeutic_category": "Oncology",
+        "alert_type": "Recall / Safety Alert"
+      }
     }
   }
 }

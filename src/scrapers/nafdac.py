@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from bs4 import BeautifulSoup, Tag
 import re
@@ -131,7 +131,7 @@ class NafDacScraper(BaseScraper):
                 return parsed_table
         return {}
 
-    def _parse_listing_page(self, html: str, listing_url: str) -> List[DrugAlert]:
+    def _parse_listing_page(self, soup: BeautifulSoup, listing_url: str) -> List[DrugAlert]:
         """
         Reads table rows from tbody and extracts all necessary info
           - publish_date (col 1)
@@ -144,7 +144,6 @@ class NafDacScraper(BaseScraper):
         date_sel = listing_cfg.get("date_selector")
         fields = listing_cfg.get("fields") or {}
 
-        soup = BeautifulSoup(html, "html.parser")
         rows = soup.select(item_sel) if item_sel else []
 
         results: List[DrugAlert] = []
@@ -272,7 +271,7 @@ class NafDacScraper(BaseScraper):
 
         listing_scraped = self.scrape(listing_url)
         records = self._parse_listing_page(
-            html=listing_scraped["html"],
+            soup=listing_scraped["html"],
             listing_url=listing_scraped.get("final_url") or listing_url,
         )
 

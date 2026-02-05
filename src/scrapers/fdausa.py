@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Dict, List, Optional, Tuple
+import requests
 
 from bs4 import BeautifulSoup
 
 from src.models import DrugAlert
+import pandas as pd
+from io import BytesIO
 
 from .base import BaseScraper
 from .utils import (
@@ -19,24 +22,17 @@ from .utils import (
 
 
 class FDAUSAScraper(BaseScraper):
-    """
-    Site-specific scraper class for:
-      https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts
+    def __init__(self, config: dict, start_date: datetime = None) -> None:
+        """Init the parent and subclass."""
 
-    - Inherits BaseScraper (shared fetch + sqlite upsert)
-    - Reads selectors/defaults from sources.json (FDA_US key)
-    - Implements standardize() to output DrugAlert rows
-    """
-
-    def __init__(self, sources_path: str = "config/sources.json") -> None:
-        self.cfg = load_source_cfg(sources_path, "FDA_US")
-        base_url = self.cfg["base_url"]
-        req_args = self.cfg.get("request") or {}
-        super().__init__(base_url, args=req_args)
-
+        self.cfg = config
+        super().__init__(
+            self.cfg["base_url"],
+            args=self.cfg.get("request") or {},
+            start_date=start_date,
+        )
         self.source_id = self.cfg["source_id"]
-        self.source_country = self.cfg.get("source_country")
-        self.source_org = self.cfg.get("source_org")
+        self.source_org = self.cfg["source_org"]
 
     def _is_oncology(self, body_text: str) -> bool:
         filters = self.cfg.get("filters") or {}
@@ -137,50 +133,29 @@ class FDAUSAScraper(BaseScraper):
             **extracted,
         }
 
-    def standardize(self):
-        defaults = self.cfg.get("defaults", {})
-        records = []
-
-        listing_scraped = self.scrape(self.cfg["base_url"])
-        rows = self._parse_listing_page(
-            listing_scraped["html"], listing_scraped["final_url"]
+    def _fetch_table(self, base_url: str, params: dict, headers: dict):
+        
+        r = requests.get(
+            base_url,
+            params=params,
+            headers=headers,
+            timeout=30,
         )
 
-        for row in rows:
-            body_text = f"{row['description']} {row['reason']} {row['product_type']}"
+        df = pd.read_excel(BytesIO(r.content))
+        df['Date'] = pd.to_datetime(df['Date'], format="%m/%d/%Y")
+        return df.to_dict('list')
 
-            # Oncology filter
-            if self.cfg["filters"]["require_oncology"]:
-                keywords = self.cfg["filters"]["oncology_keywords"]
-                if not any(k.lower() in body_text.lower() for k in keywords):
-                    continue
 
-            record_id = self.make_record_id(
-                self.source_id,
-                row["detail_url"],
-                row["publish_date"],
-                row["brand_name"],
-                row["manufacturer_stated"],
-            )
+    def standardize(self):
+        listing_url = self.cfg[
+            "base_url"
+        ]  
+        params = self.cfg["params"]
+        headers = self.cfg["request"]["headers"]
 
-            records.append(
-                DrugAlert(
-                    record_id=record_id,
-                    source_id=self.source_id,
-                    source_country=self.source_country,
-                    source_org=self.source_org,
-                    source_url=row["detail_url"],
-                    title=row["brand_name"],
-                    product_name=row["brand_name"],
-                    publish_date=row["publish_date"],
-                    manufacturer_stated=row["manufacturer_stated"],
-                    manufactured_for=None,
-                    therapeutic_category=defaults.get("therapeutic_category"),
-                    reason=row["reason"],
-                    alert_type=defaults.get("alert_type"),
-                    notes=row["description"],
-                    scraped_at=datetime.now(timezone.utc),
-                )
-            )
+
+        records = self._fetch_table(listing_url, params, headers)
+        
 
         return records

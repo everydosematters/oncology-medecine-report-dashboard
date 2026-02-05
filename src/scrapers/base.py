@@ -49,7 +49,7 @@ class BaseScraper(ABC):
         return {
             "final_url": resp.url,
             "status_code": resp.status_code,
-            "html": html,
+            "html": soup,
             "text": text,
             "retrieved_at": datetime.now(timezone.utc).isoformat(),
         }
