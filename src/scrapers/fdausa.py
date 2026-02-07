@@ -2,29 +2,30 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from typing import Dict, List, Optional, Tuple
-import requests
+import time
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
+import requests
 from bs4 import BeautifulSoup
 
 from src.models import DrugAlert
-import pandas as pd
-from io import BytesIO
 
 from .base import BaseScraper
 from .utils import (
-    load_source_cfg,
-    select_one_text,
     absolutize,
+    clean_text,
     extract_by_regex,
+    parse_date,
+    select_one_text,
 )
 
 
 class FDAUSAScraper(BaseScraper):
     def __init__(self, config: dict, start_date: datetime = None) -> None:
         """Init the parent and subclass."""
-
+        if start_date is not None and start_date.tzinfo is None:
+            start_date = start_date.replace(tzinfo=timezone.utc)
         self.cfg = config
         super().__init__(
             self.cfg["base_url"],
@@ -42,86 +43,145 @@ class FDAUSAScraper(BaseScraper):
         hay = (body_text or "").lower()
         return any(k.lower() in hay for k in keywords)
 
-    def _listing_urls(self) -> List[str]:
-        pag = (self.cfg.get("listing") or {}).get("pagination") or {}
-        base = self.cfg["base_url"]
-
-        if not pag:
-            return [base]
-
-        if pag.get("type") != "query_param":
-            return [base]
-
-        param = pag["param"]
-        start = int(pag.get("start", 0))
-        max_pages = int(pag.get("max_pages", 1))
-
-        urls: List[str] = []
-        for p in range(start, start + max_pages):
-            sep = "&" if "?" in base else "?"
-            urls.append(f"{base}{sep}{param}={p}")
-        return urls
-
-    def _parse_listing_page(self, html: str, listing_url: str):
+    def _parse_anchor(self, html: str) -> Tuple[Optional[str], Optional[str]]:
+        """Extract (brand_text, absolute_url) from <a href="/safety/...">Brand</a>."""
+        if not html or "<a" not in html:
+            return None, None
         soup = BeautifulSoup(html, "html.parser")
-        rows = soup.select("table#datatable tbody tr")
+        a = soup.find("a", href=True)
+        if not a:
+            return None, None
+        brand = clean_text(a.get_text(" ", strip=True))
+        detail_url = absolutize(self.cfg["base_url"], a["href"])
+        return brand, detail_url
 
-        results = []
+    def _parse_date_from_time_html(self, html: str) -> Optional[datetime]:
+        """Extract datetime from <time datetime="2026-02-06T05:00:00Z">."""
+        if not html:
+            return None
+        soup = BeautifulSoup(html, "html.parser")
+        time_el = soup.find("time", datetime=True)
+        if not time_el:
+            return None
+        dt_str = time_el.get("datetime", "").strip()
+        if not dt_str:
+            return None
+        # Handle Z suffix for UTC
+        if dt_str.endswith("Z"):
+            dt_str = dt_str[:-1] + "+00:00"
+        try:
+            return datetime.fromisoformat(dt_str)
+        except ValueError:
+            return parse_date(dt_str)
 
-        for row in rows:
-            cols = row.select("td")
-            if len(cols) < 6:
-                continue  # skip malformed rows
+    def _fetch_ajax_listing(self) -> List[List[str]]:
+        """Fetch listing pages via AJAX (script.py style). Returns list of row arrays."""
+        listing_cfg = self.cfg.get("listing") or {}
+        if listing_cfg.get("type") != "ajax":
+            return []
 
-            # Date
-            time_el = cols[0].select_one("time")
-            date_txt = time_el["datetime"] if time_el else cols[0].get_text(strip=True)
+        ajax_url = listing_cfg.get("ajax_url") or self.cfg.get("ajax_url", "")
+        params = dict(listing_cfg.get("params") or {})
+        pag = listing_cfg.get("pagination") or {}
+        page_size = int(pag.get("page_size", 25))
+        max_pages = int(pag.get("max_pages", 5))
+        headers = (self.cfg.get("request") or {}).get("headers") or {}
+        sleep_seconds = float(pag.get("sleep_seconds", 0.4))
 
-            # Brand + link
-            link_el = cols[1].select_one("a")
-            if not link_el:
+        all_rows: List[List[str]] = []
+
+        with requests.Session() as session:
+            for page in range(max_pages):
+                start = page * page_size
+                req_params = dict(params)
+                req_params["start"] = start
+                req_params["length"] = page_size
+                req_params["draw"] = page + 1
+
+                r = session.get(
+                    ajax_url,
+                    params=req_params,
+                    headers=headers,
+                    timeout=30,
+                )
+                r.raise_for_status()
+                payload = r.json()
+
+                rows = payload.get("data", [])
+                if not rows:
+                    break
+
+                all_rows.extend(rows)
+                time.sleep(sleep_seconds)
+
+        return all_rows
+
+    def _parse_listing_rows(
+        self, raw_rows: List[List[str]]
+    ) -> List[Dict[str, Any]]:
+        """Convert AJAX row arrays to structured dicts with detail_url, brand_name, etc."""
+        cols = (self.cfg.get("listing") or {}).get("columns") or {}
+        date_idx = cols.get("date_index", 0)
+        brand_link_idx = cols.get("brand_link_index", 1)
+        desc_idx = cols.get("description_index", 2)
+        company_idx = cols.get("company_index", 5)
+
+        results: List[Dict[str, Any]] = []
+
+        for row in raw_rows:
+            if len(row) <= brand_link_idx:
                 continue
 
-            detail_url = absolutize(listing_url, link_el["href"])
-            brand_name = link_el.get_text(strip=True)
+            brand_name, detail_url = self._parse_anchor(
+                row[brand_link_idx] if isinstance(row[brand_link_idx], str) else ""
+            )
+            if not detail_url:
+                continue
 
-            # Product description
-            description = cols[2].get_text(strip=True)
+            publish_date = self._parse_date_from_time_html(
+                row[date_idx] if isinstance(row[date_idx], str) else ""
+            )
 
-            # Product type
-            product_type = cols[3].get_text(strip=True)
+            description = ""
+            if len(row) > desc_idx and row[desc_idx]:
+                description = clean_text(str(row[desc_idx])) or ""
 
-            # Recall reason
-            recall_reason = cols[4].get_text(strip=True)
-
-            # Company
-            company = cols[5].get_text(strip=True)
+            manufacturer = ""
+            if len(row) > company_idx and row[company_idx]:
+                manufacturer = clean_text(str(row[company_idx])) or ""
 
             results.append(
                 {
                     "detail_url": detail_url,
-                    "publish_date": date_txt,
                     "brand_name": brand_name,
                     "description": description,
-                    "product_type": product_type,
-                    "reason": recall_reason,
-                    "manufacturer_stated": company,
+                    "manufacturer": manufacturer,
+                    "publish_date": publish_date,
                 }
             )
 
         return results
 
-    def _parse_detail_page(self, html: str) -> Dict[str, Optional[str]]:
-        dcfg = self.cfg.get("detail_page") or {}
-        soup = BeautifulSoup(html, "html.parser")
+    def _parse_detail_page(
+        self, html_or_soup: Any
+    ) -> Tuple[Dict[str, Any], bool]:
+        """Parse detail page. Returns (parsed_dict, is_oncology)."""
+        soup = (
+            html_or_soup
+            if isinstance(html_or_soup, BeautifulSoup)
+            else BeautifulSoup(html_or_soup or "", "html.parser")
+        )
 
+        dcfg = self.cfg.get("detail_page") or {}
         title = select_one_text(soup, dcfg.get("title_selector", ""))
         body = select_one_text(soup, dcfg.get("body_selector", ""))
-        publish_date = select_one_text(soup, dcfg.get("publish_date_selector", ""))
+
+        if not self._is_oncology(body or ""):
+            return {}, False
 
         extracted: Dict[str, Optional[str]] = {}
         for field_name, rule in (dcfg.get("fields") or {}).items():
-            if (rule or {}).get("strategy") == "regex":
+            if isinstance(rule, dict) and rule.get("strategy") == "regex":
                 extracted[field_name] = extract_by_regex(
                     body or "", rule.get("pattern", "")
                 )
@@ -129,33 +189,71 @@ class FDAUSAScraper(BaseScraper):
         return {
             "title": title,
             "body_text": body,
-            "publish_date": publish_date,
+            "brand_name": None,  # from listing
             **extracted,
-        }
+        }, True
 
-    def _fetch_table(self, base_url: str, params: dict, headers: dict):
-        
-        r = requests.get(
-            base_url,
-            params=params,
-            headers=headers,
-            timeout=30,
-        )
+    def standardize(self) -> List[DrugAlert]:
+        """Fetch AJAX listing, scrape each detail page, filter oncology, return DrugAlerts."""
+        raw_rows = self._fetch_ajax_listing()
+        parsed_rows = self._parse_listing_rows(raw_rows)
 
-        df = pd.read_excel(BytesIO(r.content))
-        df['Date'] = pd.to_datetime(df['Date'], format="%m/%d/%Y")
-        return df.to_dict('list')
+        results: List[DrugAlert] = []
+        defaults = self.cfg.get("defaults") or {}
 
+        for row in parsed_rows:
+            detail_url = row["detail_url"]
+            publish_date = row["publish_date"]
 
-    def standardize(self):
-        listing_url = self.cfg[
-            "base_url"
-        ]  
-        params = self.cfg["params"]
-        headers = self.cfg["request"]["headers"]
+            if self.start_date and publish_date and publish_date < self.start_date:
+                break
 
+            detail_scraped = self.scrape(detail_url)
+            parsed, is_oncology = self._parse_detail_page(
+                detail_scraped["html"]
+            )
 
-        records = self._fetch_table(listing_url, params, headers)
-        
+            if not is_oncology:
+                continue
 
-        return records
+            brand_name = row.get("brand_name") or parsed.get("brand_name")
+            title = parsed.get("title") or row.get("description") or ""
+
+            record_id = self.make_record_id(
+                self.source_id,
+                detail_url,
+                publish_date,
+                title,
+                row.get("manufacturer"),
+            )
+
+            results.append(
+                DrugAlert(
+                    record_id=record_id,
+                    source_id=self.source_id,
+                    source_org=self.source_org,
+                    source_country=self.cfg.get("source_country", "United States"),
+                    source_url=detail_url,
+                    publish_date=publish_date,
+                    manufacturer=row.get("manufacturer") or None,
+                    notes=title or row.get("description"),
+                    alert_type=defaults.get("alert_type"),
+                    product_name=brand_name or title or None,
+                    brand_name=brand_name,
+                    generic_name=parsed.get("generic_name"),
+                    batch_number=parsed.get("batch_number"),
+                    expiry_date=(
+                        parse_date(parsed.get("expiry_date"))
+                        if parsed.get("expiry_date")
+                        else None
+                    ),
+                    date_of_manufacture=(
+                        parse_date(parsed.get("date_of_manufacture"))
+                        if parsed.get("date_of_manufacture")
+                        else None
+                    ),
+                    scraped_at=datetime.now(timezone.utc),
+                )
+            )
+
+        return results

@@ -1,3 +1,5 @@
+"""Tests for FDA USA scraper (AJAX-based workflow)."""
+
 import json
 from pathlib import Path
 from typing import Any, Dict
@@ -7,60 +9,55 @@ import pytest
 from src.scrapers.fdausa import FDAUSAScraper
 
 
-@pytest.fixture
-def sources_path(tmp_path: Path) -> str:
-    """
-    Minimal sources.json for FDA_US using TABLE-based listing selectors.
-    """
-    cfg = {
-        "FDA_US": {
-            "source_id": "FDA_US",
-            "source_country": "United States",
-            "source_org": "U.S. Food and Drug Administration (FDA)",
-            "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
-            "request": {"headers": {"Accept-Language": "en-US,en;q=0.9"}},
-            "listing": {
-                # Key change: table rows
-                "item_selector": "table#datatable tbody tr",
-                # Link lives in the Brand Name column
-                "link_selector": "td:nth-child(2) a",
-                # Date column may include a <time> (often does)
-                "date_selector": "td:nth-child(1) time",
-                "pagination": {
-                    "type": "query_param",
-                    "param": "page",
-                    "start": 0,
-                    "max_pages": 5,
-                },
+def _fda_ajax_config() -> Dict[str, Any]:
+    """Minimal FDA_US config with AJAX listing (sources.json style)."""
+    return {
+        "source_id": "FDA_US",
+        "source_country": "United States",
+        "source_org": "U.S. Food and Drug Administration (FDA)",
+        "base_url": "https://www.fda.gov",
+        "ajax_url": "https://www.fda.gov/datatables/views/ajax",
+        "request": {
+            "headers": {
+                "Accept": "application/json, text/javascript, */*; q=0.01",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
+            }
+        },
+        "listing": {
+            "type": "ajax",
+            "ajax_url": "https://www.fda.gov/datatables/views/ajax",
+            "params": {
+                "search_api_fulltext": "",
+                "view_name": "recall_solr_index",
+                "view_display_id": "recall_datatable_block_1",
             },
-            "filters": {
-                "require_oncology": True,
-                "oncology_keywords": [
-                    "oncology",
-                    "cancer",
-                    "tumor",
-                    "chemotherapy",
-                    "immunotherapy",
-                    "malignant",
-                ],
+            "pagination": {"page_size": 25, "max_pages": 1},
+            "columns": {
+                "date_index": 0,
+                "brand_link_index": 1,
+                "description_index": 2,
+                "product_type_index": 3,
+                "reason_index": 4,
+                "company_index": 5,
             },
-            "defaults": {"therapeutic_category": "Oncology", "alert_type": "Recall"},
-        }
+        },
+        "detail_page": {
+            "title_selector": "h1.page-title",
+            "body_selector": "div.node__content",
+        },
+        "filters": {
+            "require_oncology": True,
+            "oncology_keywords": ["oncology", "cancer", "chemotherapy"],
+        },
+        "defaults": {"alert_type": "Recall / Safety Alert"},
     }
-
-    p = tmp_path / "sources.json"
-    p.write_text(json.dumps(cfg), encoding="utf-8")
-    return str(p)
 
 
 def _as_iso_date(val: Any) -> str:
-    """
-    Helper: normalize publish_date regardless of whether your DrugAlert model
-    stores it as str, date, or datetime.
-    """
+    """Normalize publish_date for comparison."""
     if val is None:
         return ""
-    # datetime/date objects
     if hasattr(val, "date"):
         try:
             return str(val.date())
@@ -69,103 +66,86 @@ def _as_iso_date(val: Any) -> str:
     return str(val)
 
 
-def test_fda_listing_urls_pagination(sources_path: str) -> None:
-    scraper = FDAUSAScraper(sources_path)
-    urls = scraper._listing_urls()
+def test_parse_anchor() -> None:
+    """Test extraction of brand text and detail URL from anchor HTML."""
+    cfg = _fda_ajax_config()
+    scraper = FDAUSAScraper(cfg)
 
-    assert len(urls) == 5
-    assert urls[0].endswith("?page=0")
-    assert urls[-1].endswith("?page=4")
+    html = '<a href="/safety/recalls-market-withdrawals-safety-alerts/oncodrug-x-recall">OncoDrug X</a>'
+    brand, url = scraper._parse_anchor(html)
+    assert brand == "OncoDrug X"
+    assert "oncodrug-x-recall" in url
+    assert url.startswith("https://www.fda.gov/")
+
+    brand2, url2 = scraper._parse_anchor("no anchor here")
+    assert brand2 is None
+    assert url2 is None
 
 
-def test_fda_standardize_from_table_listing(monkeypatch, sources_path: str) -> None:
-    """
-    End-to-end sanity check using a mocked TABLE listing.
-    - Ensures selectors match the table DOM
-    - Ensures oncology filtering passes
-    - Ensures record fields are populated sensibly
-    """
-    scraper = FDAUSAScraper(sources_path)
+def test_parse_date_from_time_html() -> None:
+    """Test extraction of datetime from time element."""
+    cfg = _fda_ajax_config()
+    scraper = FDAUSAScraper(cfg)
 
-    listing_html = """
-    <html>
-      <body>
-        <table id="datatable">
-          <thead>
-            <tr>
-              <th>Date</th><th>Brand Name</th><th>Product Description</th>
-              <th>Product Type</th><th>Recall Reason</th><th>Company Name</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td><time datetime="2026-01-01">January 1, 2026</time></td>
-              <td><a href="/recalls/recall-1">OncoDrug X</a></td>
-              <td>Oncology medicine tablets, 50mg</td>
-              <td>Drugs</td>
-              <td>Potential contamination during chemotherapy supply chain</td>
-              <td>ACME Pharma</td>
-            </tr>
-          </tbody>
-        </table>
-      </body>
-    </html>
-    """
+    html = '<time datetime="2026-01-15T05:00:00Z">01/15/2026</time>'
+    dt = scraper._parse_date_from_time_html(html)
+    assert dt is not None
+    assert "2026-01-15" in _as_iso_date(dt)
 
-    # If your current standardize() still scrapes the detail URL too,
-    # this prevents it from failing. (We don’t rely on detail parsing here.)
+
+def test_standardize_mocked(monkeypatch) -> None:
+    """End-to-end test with mocked AJAX and detail page scraping."""
+    cfg = _fda_ajax_config()
+    cfg["filters"]["require_oncology"] = False  # avoid filtering for test
+    scraper = FDAUSAScraper(cfg)
+
+    # Mock AJAX response rows (col_0=date, col_1=brand+link, col_2=desc, col_5=company)
+    sample_rows = [
+        [
+            '<time datetime="2026-01-10T05:00:00Z">01/10/2026</time>',
+            '<a href="/safety/recalls-market-withdrawals-safety-alerts/test-recall-1">Test Brand</a>',
+            "Test product description",
+            "Drugs",
+            "Recall reason",
+            "Test Company Inc.",
+            "",
+            "",
+        ],
+    ]
+
+    def fake_fetch_ajax(self):
+        return sample_rows
+
     detail_html = """
-    <html><body><h1>OncoDrug X</h1><div>Placeholder detail page</div></body></html>
+    <html><body>
+      <h1 class="page-title">Test Brand Recall</h1>
+      <div class="node__content"><p>Product recalled due to quality issue.</p></div>
+    </body></html>
     """
 
-    def fake_scrape(url: str = None) -> Dict[str, Any]:
-        target = url or scraper.url
-
-        # Listing pages (with pagination)
-        if "page=" in target or target == scraper.cfg["base_url"]:
-            return {
-                "final_url": target,
-                "status_code": 200,
-                "html": listing_html,
-                "text": "listing page",
-                "retrieved_at": "2026-01-01T00:00:00Z",
-            }
-
-        # Detail page (if called)
+    def fake_scrape(url: str = None):
+        from bs4 import BeautifulSoup
         return {
-            "final_url": "https://www.fda.gov/recalls/recall-1",
+            "final_url": url or "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/test-recall-1",
             "status_code": 200,
-            "html": detail_html,
-            "text": "Placeholder detail page",
-            "retrieved_at": "2026-01-01T00:00:01Z",
+            "html": BeautifulSoup(detail_html, "html.parser"),
+            "text": "detail page",
+            "retrieved_at": "2026-01-10T00:00:00Z",
         }
 
+    monkeypatch.setattr(FDAUSAScraper, "_fetch_ajax_listing", fake_fetch_ajax)
     monkeypatch.setattr(scraper, "scrape", fake_scrape)
 
     records = scraper.standardize()
 
     assert len(records) == 1
     r = records[0]
-
-    # Basic identity/defaults
     assert r.source_id == "FDA_US"
-    assert r.therapeutic_category == "Oncology"
-    assert r.alert_type == "Recall"
-
-    # Publish date should be derived from the table date column
-    assert "2026-01-01" in _as_iso_date(r.publish_date)
-
-    # Title should come from Brand Name column in the table (OncoDrug X)
-    assert r.title is not None
-    assert "OncoDrug X" in str(r.title)
-
-    # Company + reason should be populated from the table row
-    assert r.manufacturer_stated is not None
-    assert "ACME" in str(r.manufacturer_stated)
-
-    assert r.reason is not None
-    assert "contamination" in str(r.reason).lower()
-
-    # Record id should be stable-ish
-    assert isinstance(r.record_id, str)
+    assert r.source_org == "U.S. Food and Drug Administration (FDA)"
+    assert r.alert_type == "Recall / Safety Alert"
+    assert "2026-01-10" in _as_iso_date(r.publish_date)
+    assert r.brand_name == "Test Brand"
+    assert r.product_name == "Test Brand"
+    assert "Test Company" in str(r.manufacturer or "")
+    assert r.record_id
     assert len(r.record_id) > 10
