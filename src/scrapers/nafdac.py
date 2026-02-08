@@ -21,7 +21,7 @@ from .utils import (
     select_one_text,
     select_all_text,
     parse_date,
-    extract_country_from_title
+    extract_country_from_title,
 )
 
 

@@ -43,15 +43,11 @@ class BaseScraper(ABC):
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
 
-        text = soup.get_text(separator=" ", strip=True)
-        text = re.sub(r"\s+", " ", text).strip()
-
+       
         return {
             "final_url": resp.url,
             "status_code": resp.status_code,
             "html": soup,
-            "text": text,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(),
         }
 
     @abstractmethod

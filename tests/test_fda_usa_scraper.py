@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any, Dict
 
 import pytest
+from bs4 import BeautifulSoup
 
 from src.scrapers.fdausa import FDAUSAScraper
 
@@ -149,3 +150,72 @@ def test_standardize_mocked(monkeypatch) -> None:
     assert "Test Company" in str(r.manufacturer or "")
     assert r.record_id
     assert len(r.record_id) > 10
+
+
+def test_parse_fda_usa_table_rowspan() -> None:
+    """Test _parse_fda_usa_table with rowspan structure (product spans multiple lots)."""
+    cfg = _fda_ajax_config()
+    scraper = FDAUSAScraper(cfg)
+
+    html = """
+    <tbody>
+        <tr>
+            <td class="text-align-center" rowspan="5">Javygtor™ (Sapropterin)<br>Dihydrochloride) Powder for Oral<br>Solution 100 mg</td>
+            <td class="text-align-center">T2202812</td>
+            <td class="text-align-center">07/2025</td>
+            <td class="text-align-center">43598-097-30</td>
+        </tr>
+        <tr>
+            <td class="text-align-center">T2204053</td>
+            <td class="text-align-center">10/2025</td>
+            <td class="text-align-center">43598-097-30</td>
+        </tr>
+        <tr>
+            <td class="text-align-center">T2300975</td>
+            <td class="text-align-center">02/2026</td>
+            <td class="text-align-center">43598-097-30</td>
+        </tr>
+    </tbody>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tbody = soup.find("tbody")
+    result = scraper._parse_fda_usa_table(tbody)
+
+    assert "product_name" in result
+    assert "Javygtor" in result["product_name"][0]
+    assert result["batch_number"] == ["T2202812", "T2204053", "T2300975"]
+    assert result["expiry_date"] == ["07/2025", "10/2025", "02/2026"]
+    assert result["ndc"] == ["43598-097-30", "43598-097-30", "43598-097-30"]
+
+
+def test_parse_fda_usa_table_flat() -> None:
+    """Test _parse_fda_usa_table with flat rows (product, NDC, lot, expiry per row)."""
+    cfg = _fda_ajax_config()
+    scraper = FDAUSAScraper(cfg)
+
+    html = """
+    <tbody>
+        <tr>
+            <td><p class="text-align-center">PROGRAF® (tacrolimus)<br>0.5 mg capsules<br>100 capsules per bottle</p></td>
+            <td><p class="text-align-center">0469-0607-73</p></td>
+            <td><p class="text-align-center">0E3353D</p></td>
+            <td><p class="text-align-center">03/2026</p></td>
+        </tr>
+        <tr>
+            <td><p class="text-align-center">ASTAGRAF XL® (tacrolimus extended-release capsules)<br>0.5 mg capsules<br>30 capsules per bottle</p></td>
+            <td><p class="text-align-center">0469-0647-73</p></td>
+            <td><p class="text-align-center">0R3092A</p></td>
+            <td><p class="text-align-center">03/2026</p></td>
+        </tr>
+    </tbody>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    tbody = soup.find("tbody")
+    result = scraper._parse_fda_usa_table(tbody)
+
+    assert "product_name" in result
+    assert "PROGRAF" in result["product_name"][0]
+    assert "ASTAGRAF" in result["product_name"][1]
+    assert result["ndc"] == ["0469-0607-73", "0469-0647-73"]
+    assert result["batch_number"] == ["0E3353D", "0R3092A"]
+    assert result["expiry_date"] == ["03/2026", "03/2026"]

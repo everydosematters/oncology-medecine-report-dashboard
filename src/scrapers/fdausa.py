@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple
@@ -15,9 +16,10 @@ from .base import BaseScraper
 from .utils import (
     absolutize,
     clean_text,
-    extract_by_regex,
     parse_date,
     select_one_text,
+    select_all_text,
+    table_to_grid,
 )
 
 
@@ -162,36 +164,112 @@ class FDAUSAScraper(BaseScraper):
 
         return results
 
+    def _parse_fda_usa_table(self, table) -> Dict[str, List[str]]:
+        """
+        Parse FDA USA tables with rowspan (product spans multiple lots) or flat rows.
+        Returns normalized column-oriented dict like _parse_nafdac_table.
+        Handles: product_name, batch_number, expiry_date, ndc.
+        """
+        result: Dict[str, List[str]] = {}
+        rows = table_to_grid(table)
+        if not rows:
+            return result
+
+        ncols = len(rows[0])
+
+        # NDC pattern: ddddd-ddd-ddd or dddd-dddd-dd
+        NDC_RE = re.compile(r"^\d{4,5}-\d{3,4}-\d{1,2}$")
+        # Date patterns: MM/YYYY or MM/DD/YYYY
+        DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$|^\d{1,2}/\d{4}$")
+        # Lot/batch: short alphanumeric, typically < 20 chars
+        def looks_like_product(val: str) -> bool:
+            v = (val or "").strip()
+            return len(v) > 25 or "\n" in v or "mg" in v.lower() or "capsule" in v.lower()
+
+        def detect_col_type(col_values: List[str]) -> str:
+            non_empty = [v for v in col_values if (v or "").strip()]
+            if not non_empty:
+                return "unknown"
+            ndc_count = sum(1 for v in non_empty if NDC_RE.match((v or "").strip()))
+            date_count = sum(1 for v in non_empty if DATE_RE.match((v or "").strip()))
+            product_count = sum(1 for v in non_empty if looks_like_product(v))
+            if product_count >= len(non_empty) / 2:
+                return "product_name"
+            if ndc_count >= len(non_empty) / 2:
+                return "ndc"
+            if date_count >= len(non_empty) / 2:
+                return "expiry_date"
+            return "batch_number"
+
+        # Build column -> values, then detect types
+        cols: List[List[str]] = [[] for _ in range(ncols)]
+        for r in rows:
+            for i, c in enumerate(r):
+                if i < ncols and (c or "").strip():
+                    cols[i].append((c or "").strip())
+
+        for i, col_vals in enumerate(cols):
+            if not col_vals:
+                continue
+            key = detect_col_type(col_vals)
+            if key == "unknown":
+                key = f"col_{i}"
+            result.setdefault(key, []).extend(col_vals)
+
+        return result
+
+    def _parse_summary(self, soup: BeautifulSoup) -> dict:
+        # Find the H2 with exact text "Summary"
+        h2 = soup.find("h2", string=lambda s: s and s.strip().lower() == "summary")
+        if not h2:
+            return {}
+
+        # The <dl> is inside the next inset-column in your snippet
+        dl = h2.find_next("dl")
+        if not dl:
+            return {}
+
+        summary = {}
+        for dt in dl.find_all("dt"):
+            dd = dt.find_next_sibling("dd")
+            if not dd:
+                continue
+
+            key = dt.get_text(" ", strip=True).rstrip(":")
+            val = dd.get_text(" ", strip=True)
+            summary[key] = val
+
+        return summary 
+
     def _parse_detail_page(
-        self, html_or_soup: Any
+        self, soup: BeautifulSoup
     ) -> Tuple[Dict[str, Any], bool]:
         """Parse detail page. Returns (parsed_dict, is_oncology)."""
-        soup = (
-            html_or_soup
-            if isinstance(html_or_soup, BeautifulSoup)
-            else BeautifulSoup(html_or_soup or "", "html.parser")
-        )
 
         dcfg = self.cfg.get("detail_page") or {}
         title = select_one_text(soup, dcfg.get("title_selector", ""))
-        body = select_one_text(soup, dcfg.get("body_selector", ""))
+        body = select_all_text(soup, dcfg.get("body_selector", ""))
 
         if not self._is_oncology(body or ""):
             return {}, False
 
-        extracted: Dict[str, Optional[str]] = {}
-        for field_name, rule in (dcfg.get("fields") or {}).items():
-            if isinstance(rule, dict) and rule.get("strategy") == "regex":
-                extracted[field_name] = extract_by_regex(
-                    body or "", rule.get("pattern", "")
-                )
+        extracted = self._parse_summary(soup)
 
-        return {
+        
+        result = {
             "title": title,
-            "body_text": body,
-            "brand_name": None,  # from listing
-            **extracted,
-        }, True
+            "notes": extracted.get("Reason for Announcement") or title,
+            "brand_name": extracted.get("Brand Name"),
+            "company_publish_date": extracted.get("Company Announcement Date"),
+            "publish_date": extracted.get("FDA Publish Date"),
+            "manufacturer": extracted.get("Company Name"),
+        }
+
+        table_el = soup.select_one("table tbody") or soup.select_one("tbody")
+        if table_el:
+            specs = self._parse_fda_usa_table(table_el)
+            result.update(specs)
+        return result, True
 
     def standardize(self) -> List[DrugAlert]:
         """Fetch AJAX listing, scrape each detail page, filter oncology, return DrugAlerts."""
@@ -205,12 +283,17 @@ class FDAUSAScraper(BaseScraper):
             detail_url = row["detail_url"]
             publish_date = row["publish_date"]
 
+            row_parsed = self.scrape(detail_url)
+            print("=="*20)
+            print(detail_url)
+            print(publish_date)
+            print("=="*20)
+
             if self.start_date and publish_date and publish_date < self.start_date:
                 break
 
-            detail_scraped = self.scrape(detail_url)
             parsed, is_oncology = self._parse_detail_page(
-                detail_scraped["html"]
+                row_parsed['html']
             )
 
             if not is_oncology:
@@ -243,7 +326,7 @@ class FDAUSAScraper(BaseScraper):
                     generic_name=parsed.get("generic_name"),
                     batch_number=parsed.get("batch_number"),
                     expiry_date=(
-                        parse_date(parsed.get("expiry_date"))
+                        parse_date(parsed.get("expiry_date")[0])
                         if parsed.get("expiry_date")
                         else None
                     ),

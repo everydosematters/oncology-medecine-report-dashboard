@@ -19,7 +19,7 @@
       "ajax_url": "https://www.fda.gov/datatables/views/ajax",
       "params": {
         "search_api_fulltext": "",
-        "field_regulated_product_field": "All",
+        "field_regulated_product_field": "2312",
         "field_terminated_recall": "All",
         "_drupal_ajax": "1",
         "_wrapper_format": "drupal_ajax",
@@ -46,8 +46,8 @@
       }
     },
     "detail_page": {
-      "title_selector": "h1.page-title",
-      "body_selector": "div.node__content",
+      "title_selector": "h1",
+      "body_selector": "p",
       "publish_date_selector": "time"
     },
     "filters": {
