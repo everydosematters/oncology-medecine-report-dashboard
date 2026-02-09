@@ -1,17 +1,19 @@
 """Base scraper utilities shared across site-specific scrapers."""
 
 import hashlib
+from abc import ABC, abstractmethod
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, final
-from abc import ABC, abstractmethod
+
 import requests
 from bs4 import BeautifulSoup
-import re
-from datetime import timezone
+
 from src.models import DrugAlert
 
 
 class BaseScraper(ABC):
+    """Abstract base class for all site-specific scrapers."""
+
     def __init__(
         self,
         url: str,
@@ -20,6 +22,7 @@ class BaseScraper(ABC):
         timeout: int = 30,
         start_date: Optional[datetime] = None,
     ) -> None:
+        """Initialize the scraper with a base URL and optional request args."""
         self.url = url
         self.args = args or {}
         self.timeout = timeout
@@ -33,6 +36,7 @@ class BaseScraper(ABC):
         )
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
+        """Fetch a URL and return minimal response metadata plus parsed HTML."""
         target = url or self.url
         resp = requests.get(target, timeout=self.timeout, **self.args)
         resp.raise_for_status()
@@ -43,15 +47,10 @@ class BaseScraper(ABC):
         for tag in soup(["script", "style", "noscript"]):
             tag.decompose()
 
-        text = soup.get_text(separator=" ", strip=True)
-        text = re.sub(r"\s+", " ", text).strip()
-
         return {
             "final_url": resp.url,
             "status_code": resp.status_code,
-            "html": html,
-            "text": text,
-            "retrieved_at": datetime.now(timezone.utc).isoformat(),
+            "html": soup,
         }
 
     @abstractmethod
@@ -61,10 +60,7 @@ class BaseScraper(ABC):
 
     @final
     def make_record_id(*parts: Any) -> str:
-        """
-        Stable ID builder. Accepts strings, datetimes, dates, numbers, etc.
-        """
-        # FIXME when the product name is certain make more specific on organization and product name
+        """Build a stable record identifier from heterogeneous parts."""
         normalized: List[str] = []
         for p in parts:
             if p is None:
@@ -76,3 +72,5 @@ class BaseScraper(ABC):
 
         raw = "||".join(normalized)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    # TODO is oncology using https://www.cancer.gov/about-cancer/treatment/drugs/cancer-drugs?utm_source=chatgpt.com

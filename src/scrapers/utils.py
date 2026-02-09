@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from ast import List
 import json
 import re
 from datetime import datetime
@@ -11,6 +10,36 @@ from typing import Any, Dict, Optional, Tuple
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
+
+CANONICAL_MAP = {
+    # product
+    "product": "product_name",
+    "product name": "product_name",
+    "name of product": "product_name",
+    # batch / lot
+    "batch": "batch_number",
+    "batch no": "batch_number",
+    "batch number": "batch_number",
+    "batch number ": "batch_number",
+    "lot": "batch_number",
+    "lot no": "batch_number",
+    "lot number": "batch_number",
+    # expiry
+    "expiry": "expiry_date",
+    "expiry date": "expiry_date",
+    "expiration date": "expiry_date",
+    "exp date": "expiry_date",
+    # manufacture
+    "manufacturing date": "date_of_manufacture",
+    "manufacture date": "date_of_manufacture",
+    "date of manufacture": "date_of_manufacture",
+    "mfg date": "date_of_manufacture",
+    # manufacturer
+    "manufacturer": "stated_manufacturer",
+    "stated manufacturer": "stated_manufacturer",
+    "stated product manufacturer": "stated_manufacturer",
+    "product manufacturer": "stated_manufacturer",
+}
 
 
 def load_source_cfg(sources_path: str, source_key: str) -> Dict[str, Any]:
@@ -35,49 +64,18 @@ def cell_text(cell: Tag) -> str:
     return clean_text(cell.get_text(" ", strip=True))
 
 
-def normalize_key(label: str) -> str:
+def normalize_key(label: str, return_none: bool = False) -> Optional[str]:
     """
     Normalize table/header labels into canonical keys used by the pipeline.
     """
     if not label:
-        return ""
+        return None
 
     # --- basic cleanup ---
     label = clean_text(label)
     label = label.rstrip(":")
     label = re.sub(r"[^\w\s]+", " ", label)  # drop punctuation
     label = re.sub(r"\s+", " ", label).lower()
-
-    # --- canonical mappings ---
-    CANONICAL_MAP = {
-        # product
-        "product": "product_name",
-        "product name": "product_name",
-        "name of product": "product_name",
-        # batch / lot
-        "batch": "batch_number",
-        "batch no": "batch_number",
-        "batch number": "batch_number",
-        "batch number ": "batch_number",
-        "lot": "batch_number",
-        "lot no": "batch_number",
-        "lot number": "batch_number",
-        # expiry
-        "expiry": "expiry_date",
-        "expiry date": "expiry_date",
-        "expiration date": "expiry_date",
-        "exp date": "expiry_date",
-        # manufacture
-        "manufacturing date": "date_of_manufacture",
-        "manufacture date": "date_of_manufacture",
-        "date of manufacture": "date_of_manufacture",
-        "mfg date": "date_of_manufacture",
-        # manufacturer
-        "manufacturer": "stated_manufacturer",
-        "stated manufacturer": "stated_manufacturer",
-        "stated product manufacturer": "stated_manufacturer",
-        "product manufacturer": "stated_manufacturer",
-    }
 
     # exact match first
     if label in CANONICAL_MAP:
@@ -89,7 +87,7 @@ def normalize_key(label: str) -> str:
             return canonical
 
     # fallback: snake_case the cleaned label
-    return re.sub(r"\s+", "_", label)
+    return re.sub(r"\s+", "_", label) if not return_none else None
 
 
 def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
@@ -141,21 +139,8 @@ def extract_by_regex(body_text: str, pattern: str) -> Optional[str]:
 
 
 def parse_date(value: Optional[str]) -> Optional[datetime]:
-    """
-    Parse various date formats encountered in NAFDAC/FDA pages.
+    """Parse various date formats encountered in NAFDAC/FDA pages."""
 
-    Supported:
-      - '15-Oct-25'
-      - '15-Oct-2025'
-      - '15-October-25'
-      - '15-October-2025'
-      - '2026-01-09' (ISO)
-      - '10-2020'
-      - '10/2020'
-
-    Partial month-year dates are normalized to the first day of the month.
-    Returns None if parsing fails.
-    """
     if not value:
         return None
 
@@ -210,74 +195,6 @@ def extract_brand_name_and_generic_name_from_title(
         return None, None
 
     return m.group(1).strip(), m.group(2).strip()
-
-
-def normalize_label(label: str) -> str:
-    """
-    Normalize label text so many variations collapse to the same form.
-    """
-    label = (label or "").strip().lower()
-    label = label.rstrip(":")
-    label = re.sub(r"\(.*?\)", "", label)  # drop parentheticals
-    label = re.sub(r"[^\w\s]", " ", label)  # punctuation -> space
-    label = re.sub(r"\s+", " ", label).strip()  # collapse spaces
-    return label
-
-
-# Canonical keys you want in output
-CANONICAL = {
-    "product_name": [
-        "product name",
-        "name of product",
-        "product",
-        "name",
-    ],
-    "batch_number": [
-        "batch number",
-        "batch no",
-        "batch",
-        "lot number",
-        "lot no",
-        "lot",
-    ],
-    "expiry_date": [
-        "expiry date",
-        "expiration date",
-        "exp date",
-        "expiry",
-        "exp",
-        "best before",
-    ],
-    "manufacturing_date": [
-        "manufacturing date",
-        "date of manufacture",
-        "mfg date",
-        "manufactured on",
-        "manufacture date",
-    ],
-    "stated_manufacturer": [
-        "stated manufacturer",
-        "manufacturer",
-        "manufactured by",
-        "marketing authorization holder",
-        "mah",
-    ],
-}
-
-# Build a lookup dict: normalized alias -> canonical key
-ALIAS_TO_KEY = {
-    normalize_label(alias): key
-    for key, aliases in CANONICAL.items()
-    for alias in aliases
-}
-
-
-def canonical_key_for_label(label_text: str) -> Optional[str]:
-    """
-    Return the canonical key for a raw label, or None if unknown.
-    """
-    norm = normalize_label(label_text)
-    return ALIAS_TO_KEY.get(norm)
 
 
 def table_to_grid(tbl: Tag) -> list[list[str]]:

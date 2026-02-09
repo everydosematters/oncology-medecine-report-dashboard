@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from bs4 import BeautifulSoup, Tag
 import re
@@ -22,13 +22,14 @@ from .utils import (
     select_all_text,
     parse_date,
     extract_country_from_title,
-    canonical_key_for_label,
 )
 
 
 class NafDacScraper(BaseScraper):
+    """Scraper for NAFDAC Nigeria recall and alert listings."""
+
     def __init__(self, config: dict, start_date: datetime = None) -> None:
-        """Init the parent and subclass."""
+        """Initialize scraper with configuration and optional start date filter."""
 
         self.cfg = config
         super().__init__(
@@ -40,21 +41,24 @@ class NafDacScraper(BaseScraper):
         self.source_org = self.cfg["source_org"]
 
     def _is_oncology(self, text: str) -> bool:
-        """Determine if drug is oncological."""
+        """Return True if the given text likely refers to an oncology product."""
 
-        keywords = self.cfg["filters"]["oncology_keywords"] or ["oncology", "cancer"]
+        filters = self.cfg.get("filters") or {}
+        keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
         # FIXME do a more specific filter some drugs cause cancer and are being trapped
 
-    def _extract_product_specs_from_text(body: BeautifulSoup) -> dict[str, list[str]]:
+    def _extract_product_specs_from_text(
+        self, *soup: BeautifulSoup
+    ) -> dict[str, list[str]]:
         """Extract specs from a table."""
 
         result: dict[str, list[str]] = {}
 
-        for strong in body.find_all("strong"):
+        for strong in soup[-1].find_all("strong"):
             raw_label = strong.get_text(" ", strip=True)
-            key = canonical_key_for_label(raw_label)
+            key = normalize_key(raw_label, return_none=True)
             if not key:
                 continue
 
@@ -66,6 +70,7 @@ class NafDacScraper(BaseScraper):
                 sib.strip() if isinstance(sib, str) else sib.get_text(" ", strip=True)
             )
             value = " ".join(value.split())
+            # FIXME ['Phesgo® 600mg/600mg/10ml injection', '.']
             if value:
                 result.setdefault(key, []).append(value)
 
@@ -131,7 +136,9 @@ class NafDacScraper(BaseScraper):
                 return parsed_table
         return {}
 
-    def _parse_listing_page(self, html: str, listing_url: str) -> List[DrugAlert]:
+    def _parse_listing_page(
+        self, soup: BeautifulSoup, listing_url: str
+    ) -> List[DrugAlert]:
         """
         Reads table rows from tbody and extracts all necessary info
           - publish_date (col 1)
@@ -144,7 +151,6 @@ class NafDacScraper(BaseScraper):
         date_sel = listing_cfg.get("date_selector")
         fields = listing_cfg.get("fields") or {}
 
-        soup = BeautifulSoup(html, "html.parser")
         rows = soup.select(item_sel) if item_sel else []
 
         results: List[DrugAlert] = []
@@ -235,8 +241,7 @@ class NafDacScraper(BaseScraper):
             print("=" * 20)
         return results
 
-    def _parse_detail_page(self, html: str) -> Tuple[Dict[str, Any], bool]:
-        soup = BeautifulSoup(html, "html.parser")
+    def _parse_detail_page(self, soup: BeautifulSoup) -> Tuple[Dict[str, Any], bool]:
 
         title = select_one_text(soup, "h1")
 
@@ -272,7 +277,7 @@ class NafDacScraper(BaseScraper):
 
         listing_scraped = self.scrape(listing_url)
         records = self._parse_listing_page(
-            html=listing_scraped["html"],
+            soup=listing_scraped["html"],
             listing_url=listing_scraped.get("final_url") or listing_url,
         )
 

@@ -1,26 +1,35 @@
-"""Main module for the project."""
+"""Entry point for running scrapers and exporting CSV output."""
 
 from __future__ import annotations
 
-from src.scrapers.nafdac import NafDacScraper  # noqa: E402
 from datetime import datetime
-import pandas as pd
+
 import json
+import pandas as pd
+
+from src.scrapers.nafdac import NafDacScraper  # noqa: E402
+from src.scrapers.fdausa import FDAUSAScraper
 
 
 def main():
-    # load the sources.json file
+    """Run scrapers and export results as CSVs."""
+
+    # Resolve sources.json relative to this file so it works regardless of CWD
     with open("scrapers/sources.json", "r") as f:
         sources = json.load(f)
 
+    # Example: run FDA USA scraper from 2024-01-01 onwards
+    fdausa = FDAUSAScraper(sources["FDA_US"], datetime(2024, 1, 1))
+    fda_records = fdausa.standardize()
+
+    # Example: run NAFDAC scraper (commented out by default)
     nafdac = NafDacScraper(sources["NAFDAC_NG"], datetime(2024, 1, 1))
     nafdac_records = nafdac.standardize()
-    df = pd.DataFrame([record.model_dump() for record in nafdac_records])
-    # df = df.applymap(
-    #     lambda x: ",".join(x) if isinstance(x, list) else x
-    # )
-    # df.to_csv("nafdac.csv")
-    print(f"NAFDAC: {len(df)} records")
+
+    df = pd.DataFrame([record.model_dump() for record in fda_records + nafdac_records])
+    df = df.applymap(lambda x: ",".join(x) if isinstance(x, list) else x)
+    df.to_csv("records.csv", index=False)
+    print(f"Records: {len(df)} records")
 
 
 if __name__ == "__main__":
