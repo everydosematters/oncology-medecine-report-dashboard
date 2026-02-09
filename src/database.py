@@ -1,1 +1,1 @@
-"""Module for Database Connection"""
+"""Database connection utilities."""

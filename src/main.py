@@ -1,9 +1,8 @@
-"""Main module for the project."""
+"""Entry point for running scrapers and exporting CSV output."""
 
 from __future__ import annotations
 
 from datetime import datetime
-from pathlib import Path
 
 import json
 import pandas as pd

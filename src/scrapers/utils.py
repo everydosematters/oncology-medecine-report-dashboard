@@ -12,34 +12,34 @@ from urllib.parse import urljoin
 from bs4 import BeautifulSoup, Tag
 
 CANONICAL_MAP = {
-        # product
-        "product": "product_name",
-        "product name": "product_name",
-        "name of product": "product_name",
-        # batch / lot
-        "batch": "batch_number",
-        "batch no": "batch_number",
-        "batch number": "batch_number",
-        "batch number ": "batch_number",
-        "lot": "batch_number",
-        "lot no": "batch_number",
-        "lot number": "batch_number",
-        # expiry
-        "expiry": "expiry_date",
-        "expiry date": "expiry_date",
-        "expiration date": "expiry_date",
-        "exp date": "expiry_date",
-        # manufacture
-        "manufacturing date": "date_of_manufacture",
-        "manufacture date": "date_of_manufacture",
-        "date of manufacture": "date_of_manufacture",
-        "mfg date": "date_of_manufacture",
-        # manufacturer
-        "manufacturer": "stated_manufacturer",
-        "stated manufacturer": "stated_manufacturer",
-        "stated product manufacturer": "stated_manufacturer",
-        "product manufacturer": "stated_manufacturer",
-    }
+    # product
+    "product": "product_name",
+    "product name": "product_name",
+    "name of product": "product_name",
+    # batch / lot
+    "batch": "batch_number",
+    "batch no": "batch_number",
+    "batch number": "batch_number",
+    "batch number ": "batch_number",
+    "lot": "batch_number",
+    "lot no": "batch_number",
+    "lot number": "batch_number",
+    # expiry
+    "expiry": "expiry_date",
+    "expiry date": "expiry_date",
+    "expiration date": "expiry_date",
+    "exp date": "expiry_date",
+    # manufacture
+    "manufacturing date": "date_of_manufacture",
+    "manufacture date": "date_of_manufacture",
+    "date of manufacture": "date_of_manufacture",
+    "mfg date": "date_of_manufacture",
+    # manufacturer
+    "manufacturer": "stated_manufacturer",
+    "stated manufacturer": "stated_manufacturer",
+    "stated product manufacturer": "stated_manufacturer",
+    "product manufacturer": "stated_manufacturer",
+}
 
 
 def load_source_cfg(sources_path: str, source_key: str) -> Dict[str, Any]:
@@ -139,7 +139,7 @@ def extract_by_regex(body_text: str, pattern: str) -> Optional[str]:
 
 
 def parse_date(value: Optional[str]) -> Optional[datetime]:
-    """Parse various date formats encountered in NAFDAC/FDA pages. """
+    """Parse various date formats encountered in NAFDAC/FDA pages."""
 
     if not value:
         return None

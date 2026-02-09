@@ -1,10 +1,7 @@
 """Tests for FDA USA scraper (AJAX-based workflow)."""
 
-import json
-from pathlib import Path
 from typing import Any, Dict
 
-import pytest
 from bs4 import BeautifulSoup
 
 from src.scrapers.fdausa import FDAUSAScraper
@@ -126,8 +123,10 @@ def test_standardize_mocked(monkeypatch) -> None:
 
     def fake_scrape(url: str = None):
         from bs4 import BeautifulSoup
+
         return {
-            "final_url": url or "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/test-recall-1",
+            "final_url": url
+            or "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/test-recall-1",
             "status_code": 200,
             "html": BeautifulSoup(detail_html, "html.parser"),
             "text": "detail page",

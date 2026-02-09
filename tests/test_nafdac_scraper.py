@@ -27,7 +27,9 @@ def test_parse_nafdac_table_matrix_3col(nafdac_scraper):
     soup = BeautifulSoup(html, "html.parser")
     out = nafdac_scraper._parse_nafdac_table(soup.select_one("table"))
 
-    assert out["product_name"] == ["Darzalex (Daratumumab) 1800mg/15 ml vial for SC Injection"]
+    assert out["product_name"] == [
+        "Darzalex (Daratumumab) 1800mg/15 ml vial for SC Injection"
+    ]
     assert out["batch_number"] == ["PKS1F01"]
     assert out["expiry_date"] == ["10-2026"]
 
@@ -54,7 +56,9 @@ def test_parse_nafdac_table_kv_2col(nafdac_scraper):
     assert out["date_of_manufacture"] == ["01/2024"]
 
 
-@pytest.mark.xfail(reason="Too lazy to fix the test right now but everything else works when I do e2e.")
+@pytest.mark.xfail(
+    reason="Too lazy to fix the test right now but everything else works when I do e2e."
+)
 def test_parse_detail_page_extracts_title_body_date_and_tables(nafdac_scraper):
     html = """
     <html>
@@ -104,7 +108,9 @@ def test_parse_detail_page_extracts_title_body_date_and_tables(nafdac_scraper):
     assert specs["expiry_date"] == ["01/2026"]
 
 
-@pytest.mark.xfail(reason="Known bug: strong.next_sibling can swallow the rest of the paragraph; should stop at end of value.")
+@pytest.mark.xfail(
+    reason="Known bug: strong.next_sibling can swallow the rest of the paragraph; should stop at end of value."
+)
 def test_extract_product_specs_stops_at_value_boundary(nafdac_scraper):
     html = """
     <div class="entry-content">
@@ -112,5 +118,7 @@ def test_extract_product_specs_stops_at_value_boundary(nafdac_scraper):
     </div>
     """
     soup = BeautifulSoup(html, "html.parser")
-    out = nafdac_scraper._extract_product_specs_from_text(soup.select_one("div.entry-content"))
+    out = nafdac_scraper._extract_product_specs_from_text(
+        soup.select_one("div.entry-content")
+    )
     assert out["batch_number"] == ["C5290S20"]

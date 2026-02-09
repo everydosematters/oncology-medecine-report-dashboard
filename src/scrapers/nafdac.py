@@ -26,8 +26,10 @@ from .utils import (
 
 
 class NafDacScraper(BaseScraper):
+    """Scraper for NAFDAC Nigeria recall and alert listings."""
+
     def __init__(self, config: dict, start_date: datetime = None) -> None:
-        """Init the parent and subclass."""
+        """Initialize scraper with configuration and optional start date filter."""
 
         self.cfg = config
         super().__init__(
@@ -39,14 +41,17 @@ class NafDacScraper(BaseScraper):
         self.source_org = self.cfg["source_org"]
 
     def _is_oncology(self, text: str) -> bool:
-        """Determine if drug is oncological."""
+        """Return True if the given text likely refers to an oncology product."""
 
-        keywords = self.cfg["filters"]["oncology_keywords"] or ["oncology", "cancer"]
+        filters = self.cfg.get("filters") or {}
+        keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
         # FIXME do a more specific filter some drugs cause cancer and are being trapped
 
-    def _extract_product_specs_from_text(self, *soup: BeautifulSoup) -> dict[str, list[str]]:
+    def _extract_product_specs_from_text(
+        self, *soup: BeautifulSoup
+    ) -> dict[str, list[str]]:
         """Extract specs from a table."""
 
         result: dict[str, list[str]] = {}
@@ -65,7 +70,7 @@ class NafDacScraper(BaseScraper):
                 sib.strip() if isinstance(sib, str) else sib.get_text(" ", strip=True)
             )
             value = " ".join(value.split())
-            #FIXME ['Phesgo® 600mg/600mg/10ml injection', '.']
+            # FIXME ['Phesgo® 600mg/600mg/10ml injection', '.']
             if value:
                 result.setdefault(key, []).append(value)
 
@@ -131,7 +136,9 @@ class NafDacScraper(BaseScraper):
                 return parsed_table
         return {}
 
-    def _parse_listing_page(self, soup: BeautifulSoup, listing_url: str) -> List[DrugAlert]:
+    def _parse_listing_page(
+        self, soup: BeautifulSoup, listing_url: str
+    ) -> List[DrugAlert]:
         """
         Reads table rows from tbody and extracts all necessary info
           - publish_date (col 1)

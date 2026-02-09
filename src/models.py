@@ -1,4 +1,4 @@
-"""Module for Models"""
+"""Data models for standardized drug alerts."""
 
 from __future__ import annotations
 

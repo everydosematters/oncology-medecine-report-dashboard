@@ -16,7 +16,6 @@ def test_normalize_key_canonical_variants(utils_mod):
     assert nk("Stated Manufacturer") == "stated_manufacturer"
 
 
-
 def test_parse_date_handles_listing_and_month_year(utils_mod):
     parse_date = utils_mod.parse_date
 

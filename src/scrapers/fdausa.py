@@ -1,4 +1,4 @@
-"""Scraper for US FDA."""
+"""Scraper for US FDA recalls and safety alerts."""
 
 from __future__ import annotations
 
@@ -24,8 +24,10 @@ from .utils import (
 
 
 class FDAUSAScraper(BaseScraper):
+    """Scraper for the US FDA recalls/alerts DataTables listing."""
+
     def __init__(self, config: dict, start_date: datetime = None) -> None:
-        """Init the parent and subclass."""
+        """Initialize scraper with configuration and optional start date filter."""
         if start_date is not None and start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=timezone.utc)
         self.cfg = config
@@ -118,9 +120,7 @@ class FDAUSAScraper(BaseScraper):
 
         return all_rows
 
-    def _parse_listing_rows(
-        self, raw_rows: List[List[str]]
-    ) -> List[Dict[str, Any]]:
+    def _parse_listing_rows(self, raw_rows: List[List[str]]) -> List[Dict[str, Any]]:
         """Convert AJAX row arrays to structured dicts with detail_url, brand_name, etc."""
         cols = (self.cfg.get("listing") or {}).get("columns") or {}
         date_idx = cols.get("date_index", 0)
@@ -274,11 +274,9 @@ class FDAUSAScraper(BaseScraper):
             val = dd.get_text(" ", strip=True)
             summary[key] = val
 
-        return summary 
+        return summary
 
-    def _parse_detail_page(
-        self, soup: BeautifulSoup
-    ) -> Tuple[Dict[str, Any], bool]:
+    def _parse_detail_page(self, soup: BeautifulSoup) -> Tuple[Dict[str, Any], bool]:
         """Parse detail page. Returns (parsed_dict, is_oncology)."""
 
         dcfg = self.cfg.get("detail_page") or {}
@@ -290,7 +288,6 @@ class FDAUSAScraper(BaseScraper):
 
         extracted = self._parse_summary(soup)
 
-        
         result = {
             "title": title,
             "notes": extracted.get("Reason for Announcement") or title,
@@ -319,17 +316,15 @@ class FDAUSAScraper(BaseScraper):
             publish_date = row["publish_date"]
 
             row_parsed = self.scrape(detail_url)
-            print("=="*20)
+            print("==" * 20)
             print(detail_url)
             print(publish_date)
-            print("=="*20)
+            print("==" * 20)
 
             if self.start_date and publish_date and publish_date < self.start_date:
                 break
 
-            parsed, is_oncology = self._parse_detail_page(
-                row_parsed['html']
-            )
+            parsed, is_oncology = self._parse_detail_page(row_parsed["html"])
 
             if not is_oncology:
                 continue
