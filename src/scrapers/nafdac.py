@@ -234,8 +234,7 @@ class NafDacScraper(BaseScraper):
             print("=" * 20)
         return results
 
-    def _parse_detail_page(self, html: str) -> Tuple[Dict[str, Any], bool]:
-        soup = BeautifulSoup(html, "html.parser")
+    def _parse_detail_page(self, soup: BeautifulSoup) -> Tuple[Dict[str, Any], bool]:
 
         title = select_one_text(soup, "h1")
 

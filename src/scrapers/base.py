@@ -72,3 +72,5 @@ class BaseScraper(ABC):
 
         raw = "||".join(normalized)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
+
+    #TODO is oncology using https://www.cancer.gov/about-cancer/treatment/drugs/cancer-drugs?utm_source=chatgpt.com

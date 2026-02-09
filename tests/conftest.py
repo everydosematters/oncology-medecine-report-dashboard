@@ -14,7 +14,6 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
-
 def _load_module(module_name: str, path: Path):
     spec = importlib.util.spec_from_file_location(module_name, str(path))
     if spec is None or spec.loader is None:
@@ -92,8 +91,15 @@ def nafdac_scraper(nafdac_mod):
             "title_selector": "h1.entry-title",
             "body_selector": "div.entry-content",
             "publish_date_selector": "time.entry-date",
-            "fields": {},  # keep empty for unit tests
-        }
+        },
+        "filters": {
+            "oncology_keywords": [
+                "oncology",
+                "cancer",
+                "tumour",
+                "chemotherapy",
+                "immunotherapy",
+            ]
+        },
     }
     return scraper
-
