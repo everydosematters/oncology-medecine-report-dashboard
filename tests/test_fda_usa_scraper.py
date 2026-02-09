@@ -185,7 +185,6 @@ def test_parse_fda_usa_table_rowspan() -> None:
     assert "Javygtor" in result["product_name"][0]
     assert result["batch_number"] == ["T2202812", "T2204053", "T2300975"]
     assert result["expiry_date"] == ["07/2025", "10/2025", "02/2026"]
-    assert result["ndc"] == ["43598-097-30", "43598-097-30", "43598-097-30"]
 
 
 def test_parse_fda_usa_table_flat() -> None:
@@ -216,6 +215,7 @@ def test_parse_fda_usa_table_flat() -> None:
     assert "product_name" in result
     assert "PROGRAF" in result["product_name"][0]
     assert "ASTAGRAF" in result["product_name"][1]
-    assert result["ndc"] == ["0469-0607-73", "0469-0647-73"]
     assert result["batch_number"] == ["0E3353D", "0R3092A"]
     assert result["expiry_date"] == ["03/2026", "03/2026"]
+    # We deliberately ignore NDC-like codes in this parser
+    assert "ndc" not in result

@@ -166,55 +166,90 @@ class FDAUSAScraper(BaseScraper):
 
     def _parse_fda_usa_table(self, table) -> Dict[str, List[str]]:
         """
-        Parse FDA USA tables with rowspan (product spans multiple lots) or flat rows.
-        Returns normalized column-oriented dict like _parse_nafdac_table.
-        Handles: product_name, batch_number, expiry_date, ndc.
+        Parse FDA USA product/lot tables and return only the fields we care about:
+        - product_name (full product description)
+        - batch_number / lot_number
+        - expiry_date
+
+        We deliberately ignore NDC and any other administrative columns.
         """
         result: Dict[str, List[str]] = {}
         rows = table_to_grid(table)
         if not rows:
             return result
 
-        ncols = len(rows[0])
+        # Date patterns: MM/YY, MM/YYYY, or MM/DD/YYYY
+        date_re = re.compile(r"^\d{1,2}/\d{2,4}$|^\d{1,2}/\d{1,2}/\d{2,4}$")
+        # Rough NDC pattern: three numeric groups separated by dashes
+        ndc_re = re.compile(r"^\d{3,5}-\d{2,4}-\d{1,4}$")
 
-        # NDC pattern: ddddd-ddd-ddd or dddd-dddd-dd
-        NDC_RE = re.compile(r"^\d{4,5}-\d{3,4}-\d{1,2}$")
-        # Date patterns: MM/YYYY or MM/DD/YYYY
-        DATE_RE = re.compile(r"^\d{1,2}/\d{1,2}/\d{2,4}$|^\d{1,2}/\d{4}$")
-        # Lot/batch: short alphanumeric, typically < 20 chars
         def looks_like_product(val: str) -> bool:
+            """Heuristic: product descriptions are long and often mention mg/capsules/solution, etc."""
             v = (val or "").strip()
-            return len(v) > 25 or "\n" in v or "mg" in v.lower() or "capsule" in v.lower()
+            lower = v.lower()
+            return (
+                len(v) > 25
+                or "\n" in v
+                or "mg" in lower
+                or "capsule" in lower
+                or "tablet" in lower
+                or "solution" in lower
+                or "injection" in lower
+            )
 
-        def detect_col_type(col_values: List[str]) -> str:
-            non_empty = [v for v in col_values if (v or "").strip()]
-            if not non_empty:
-                return "unknown"
-            ndc_count = sum(1 for v in non_empty if NDC_RE.match((v or "").strip()))
-            date_count = sum(1 for v in non_empty if DATE_RE.match((v or "").strip()))
-            product_count = sum(1 for v in non_empty if looks_like_product(v))
-            if product_count >= len(non_empty) / 2:
-                return "product_name"
-            if ndc_count >= len(non_empty) / 2:
-                return "ndc"
-            if date_count >= len(non_empty) / 2:
-                return "expiry_date"
-            return "batch_number"
-
-        # Build column -> values, then detect types
-        cols: List[List[str]] = [[] for _ in range(ncols)]
+        # Early exit: if the table has no expiration-like dates at all,
+        # it's likely not a product/lot table (e.g. lists of stores/addresses).
+        any_date = False
         for r in rows:
-            for i, c in enumerate(r):
-                if i < ncols and (c or "").strip():
-                    cols[i].append((c or "").strip())
+            for c in r:
+                val = (c or "").strip()
+                if val and date_re.match(val):
+                    any_date = True
+                    break
+            if any_date:
+                break
+        if not any_date:
+            return result
 
-        for i, col_vals in enumerate(cols):
-            if not col_vals:
+        for row in rows:
+            # Clean, indexed cells for this row
+            cells: List[Tuple[int, str]] = [
+                (i, (c or "").strip()) for i, c in enumerate(row) if (c or "").strip()
+            ]
+            if not cells:
                 continue
-            key = detect_col_type(col_vals)
-            if key == "unknown":
-                key = f"col_{i}"
-            result.setdefault(key, []).extend(col_vals)
+
+            # 1) Identify product cell (prefer first column if it looks like product,
+            #    otherwise pick the first cell that matches product heuristic).
+            product_idx: Optional[int] = None
+            if looks_like_product(cells[0][1]):
+                product_idx = cells[0][0]
+            else:
+                for i, v in cells:
+                    if looks_like_product(v):
+                        product_idx = i
+                        break
+
+            if product_idx is not None:
+                product_val = (row[product_idx] or "").strip()
+                if product_val:
+                    result.setdefault("product_name", []).append(product_val)
+
+            # 2) Walk remaining cells and classify as expiry_date or batch_number.
+            for idx, val in cells:
+                if idx == product_idx:
+                    continue
+
+                # Skip NDC-like codes entirely (not needed downstream)
+                if ndc_re.match(val):
+                    continue
+
+                if date_re.match(val):
+                    result.setdefault("expiry_date", []).append(val)
+                    continue
+
+                # Everything else that's not product/date/NDC is treated as lot/batch
+                result.setdefault("batch_number", []).append(val)
 
         return result
 
