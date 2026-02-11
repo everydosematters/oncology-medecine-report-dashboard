@@ -19,7 +19,7 @@ from .utils import (
     normalize_key,
     table_to_grid,
     select_one_text,
-    select_all_text,
+    get_first_name,
     parse_date,
     extract_country_from_title,
 )
@@ -181,7 +181,17 @@ class NafDacScraper(BaseScraper):
 
             # standardize
             detail_scraped = self.scrape(detail_url)
-            parsed, is_oncology = self._parse_detail_page(detail_scraped["html"])
+            parsed = self._parse_detail_page(detail_scraped["html"])
+            
+            product_name = parsed.get("product_name") or parsed.get("brand_name") or parsed.get("generic_name") or None
+            
+            if not product_name:
+                print("no product name detected")
+                print(row)
+                continue
+
+            query = get_first_name(product_name)
+            is_oncology = self.is_oncology(query)
 
             if not is_oncology:
                 continue
@@ -222,10 +232,7 @@ class NafDacScraper(BaseScraper):
                     manufacturer=manufacturer,
                     notes=parsed.get("title"),
                     alert_type=alert_type,
-                    product_name=parsed.get("product_name")
-                    or parsed.get("brand_name")
-                    or parsed.get("generic_name")
-                    or None,
+                    product_name=product_name,
                     scraped_at=datetime.now(timezone.utc),
                     brand_name=parsed.get("brand_name"),
                     generic_name=parsed.get("generic_name"),
@@ -241,7 +248,7 @@ class NafDacScraper(BaseScraper):
             print("=" * 20)
         return results
 
-    def _parse_detail_page(self, soup: BeautifulSoup) -> Tuple[Dict[str, Any], bool]:
+    def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
 
         title = select_one_text(soup, "h1")
 
@@ -251,10 +258,7 @@ class NafDacScraper(BaseScraper):
 
         brand_name, generic_name = extract_brand_name_and_generic_name_from_title(title)
 
-        body = select_all_text(soup, "p")
 
-        if not self._is_oncology(body):
-            return {}, False
 
         if soup.find("table"):
             product_specs = self._extract_product_specs(soup)
@@ -268,7 +272,7 @@ class NafDacScraper(BaseScraper):
             "generic_name": generic_name,
             "source_country": source_country,
             **product_specs,
-        }, True
+        }
 
     def standardize(self) -> List[DrugAlert]:
         listing_url = self.cfg[

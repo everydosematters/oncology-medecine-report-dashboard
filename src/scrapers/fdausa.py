@@ -18,7 +18,7 @@ from .utils import (
     clean_text,
     parse_date,
     select_one_text,
-    select_all_text,
+    get_first_name,
     table_to_grid,
 )
 
@@ -276,16 +276,12 @@ class FDAUSAScraper(BaseScraper):
 
         return summary
 
-    def _parse_detail_page(self, soup: BeautifulSoup) -> Tuple[Dict[str, Any], bool]:
+    def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
         """Parse detail page. Returns (parsed_dict, is_oncology)."""
 
         dcfg = self.cfg.get("detail_page") or {}
         title = select_one_text(soup, dcfg.get("title_selector", ""))
-        body = select_all_text(soup, dcfg.get("body_selector", ""))
-
-        if not self._is_oncology(body or ""):
-            return {}, False
-
+       
         extracted = self._parse_summary(soup)
 
         result = {
@@ -301,7 +297,7 @@ class FDAUSAScraper(BaseScraper):
         if table_el:
             specs = self._parse_fda_usa_table(table_el)
             result.update(specs)
-        return result, True
+        return result
 
     def standardize(self) -> List[DrugAlert]:
         """Fetch AJAX listing, scrape each detail page, filter oncology, return DrugAlerts."""
@@ -324,7 +320,15 @@ class FDAUSAScraper(BaseScraper):
             if self.start_date and publish_date and publish_date < self.start_date:
                 break
 
-            parsed, is_oncology = self._parse_detail_page(row_parsed["html"])
+            parsed = self._parse_detail_page(row_parsed["html"])
+            product_name = parsed.get("product_name") or parsed.get("brand_name") or parsed.get("generic_name") or None
+            query = get_first_name(product_name)
+            is_oncology = self.is_oncology(query)
+
+            if not product_name:
+                print("no product name detected")
+                print(row)
+                continue
 
             if not is_oncology:
                 continue
@@ -351,7 +355,7 @@ class FDAUSAScraper(BaseScraper):
                     manufacturer=row.get("manufacturer") or None,
                     notes=title or row.get("description"),
                     alert_type=defaults.get("alert_type"),
-                    product_name=brand_name or title or None,
+                    product_name=product_name,
                     brand_name=brand_name,
                     generic_name=parsed.get("generic_name"),
                     batch_number=parsed.get("batch_number"),
@@ -370,3 +374,4 @@ class FDAUSAScraper(BaseScraper):
             )
 
         return results
+

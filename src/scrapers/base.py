@@ -27,6 +27,7 @@ class BaseScraper(ABC):
         self.args = args or {}
         self.timeout = timeout
         self.start_date = start_date
+        self.search_url = "https://webapis.cancer.gov/drugdictionary/v1/Drugs/search"
 
         # Safe default UA
         self.args.setdefault("headers", {})
@@ -52,6 +53,12 @@ class BaseScraper(ABC):
             "status_code": resp.status_code,
             "html": soup,
         }
+    
+    def get_json(self, url: str, params: dict) -> Dict:
+        """Fetch a json instead."""
+        r = requests.get(url, params=params)
+        data = r.json()
+        return data
 
     @abstractmethod
     def standardize(self) -> List[DrugAlert]:
@@ -73,4 +80,31 @@ class BaseScraper(ABC):
         raw = "||".join(normalized)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
-    # TODO is oncology using https://www.cancer.gov/about-cancer/treatment/drugs/cancer-drugs?utm_source=chatgpt.com
+    @final
+    def is_oncology(self, name: str, match_type:str ="Begins") -> bool:
+
+        params = {
+            "query": name,
+            "matchType": match_type
+            }
+
+        resp = requests.get(url=self.search_url, params=params)
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data["meta"]["totalResults"] < 1:
+            params["matchType"] = "Contains"
+            resp = requests.get(url=self.search_url, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+        
+        if data["meta"]["totalResults"] < 1:
+            # not a know drug
+            return False
+        
+        link = data["meta"].get("drugInfoSummaryLink")
+        if not link:
+            return False
+        uri = link.get("uri", "")
+        return True if uri.startswith("https://www.cancer.gov") else False
+        

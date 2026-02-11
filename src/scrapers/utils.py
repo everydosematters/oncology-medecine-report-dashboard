@@ -265,3 +265,9 @@ def table_to_grid(tbl: Tag) -> list[list[str]]:
             out.append(rr)
 
     return out
+
+
+def get_first_name(names: str | list[str]) -> str:
+    if isinstance(names, list):
+        names = names[0]
+    return names.split(" ")[0]
