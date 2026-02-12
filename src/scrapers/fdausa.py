@@ -41,8 +41,7 @@ class FDAUSAScraper(BaseScraper):
         self.source_org = self.cfg["source_org"]
 
     def _get_product_name(self, name: str) -> str:
-       name = name.split(",")[0]
-       return name.split(" ")[0]
+       return name.split(",")[0]
 
     def _openfda_date_range(self, start_dt: datetime, end_dt: datetime) -> str:
         return f"[{start_dt:%Y%m%d} TO {end_dt:%Y%m%d}]"
@@ -51,7 +50,7 @@ class FDAUSAScraper(BaseScraper):
     def standardize(self) -> List[DrugAlert]:
         """Fetch AJAX listing, scrape each detail page, filter oncology, return DrugAlerts."""
         
-       
+        results = []
         # params = {
         #     "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",
         #     "limit": 1000
@@ -60,44 +59,42 @@ class FDAUSAScraper(BaseScraper):
             "search": f"report_date:{self._openfda_date_range(datetime(2025, 9, 20), datetime(2025, 9, 30))} AND product_type:Drugs",
             "limit": 1000
         }
-        resp = requests.get(self.cfg["base_url"], params=params, timeout=30)
+        resp = requests.get(self.cfg["api_endpoint"], params=params, timeout=30)
         resp.raise_for_status()
         data = resp.json()
         # TODO handle pagination if results are many than the limit
+        for record in data["results"]:
+            description  = record["product_description"].split(",")
+            product_name = description[0]
+            dose = description[1]
+            query = product_name.split(" ")[0]
         
-        df = pd.DataFrame(data['results'])
+            if not self.is_oncology(query):
+                continue
+            
+            record_id = self.make_record_id(description)
+            
+            results.append(
+                DrugAlert(
+                    record_id=record_id,
+                    source_id=self.source_id,
+                    source_org=self.source_org,
+                    source_country=record["country"],
+                    source_url=self.cfg["base_url"],
+                    publish_date=parse_date(record["report_date"]),
+                    manufacturer=None,
+                    notes=record["reason_for_recall"],
+                    alert_type="Recall / Safety Alert",
+                    product_name=product_name + dose,
+                    brand_name=None,
+                    generic_name=None,
+                    batch_number=record["code_info"],
+                    expiry_date=None,
+                    date_of_manufacture=None,
+                    scraped_at=datetime.now(timezone.utc),
+                )
+            )
 
-        df['product_name'] = df['product_description'].apply(self._get_product_name)
-        df['is_oncology'] = df['product_name'].apply(self.is_oncology)
-        df = df[df['is_oncology']]
-        return df
-            # results.append(
-            #     DrugAlert(
-            #         record_id=record_id,
-            #         source_id=self.source_id,
-            #         source_org=self.source_org,
-            #         source_country=self.cfg.get("source_country", "United States"),
-            #         source_url=detail_url,
-            #         publish_date=publish_date,
-            #         manufacturer=row.get("manufacturer") or None,
-            #         notes=title or row.get("description"),
-            #         alert_type=defaults.get("alert_type"),
-            #         product_name=product_name,
-            #         brand_name=brand_name,
-            #         generic_name=parsed.get("generic_name"),
-            #         batch_number=parsed.get("batch_number"),
-            #         expiry_date=(
-            #             parse_date(parsed.get("expiry_date")[0])
-            #             if parsed.get("expiry_date")
-            #             else None
-            #         ),
-            #         date_of_manufacture=(
-            #             parse_date(parsed.get("date_of_manufacture"))
-            #             if parsed.get("date_of_manufacture")
-            #             else None
-            #         ),
-            #         scraped_at=datetime.now(timezone.utc),
-            #     )
-            # )
+        return results
 
 

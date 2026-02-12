@@ -3,7 +3,8 @@
     "source_id": "FDA_US",
     "source_country": "United States",
     "source_org": "U.S. Food and Drug Administration (FDA)",
-    "base_url": "https://api.fda.gov/drug/enforcement.json"
+    "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
+    "api_endpoint": "https://api.fda.gov/drug/enforcement.json"
   },
   "NAFDAC_NG": {
     "source_id": "NAFDAC_NG",
