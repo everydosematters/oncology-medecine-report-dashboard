@@ -1,9 +1,11 @@
 """Base scraper utilities shared across site-specific scrapers."""
 
+
 import hashlib
 from abc import ABC, abstractmethod
 from datetime import date, datetime
 from typing import Any, Dict, List, Optional, final
+
 
 import requests
 from bs4 import BeautifulSoup
@@ -83,6 +85,9 @@ class BaseScraper(ABC):
     @final
     def is_oncology(self, name: str, match_type:str ="Begins") -> bool:
 
+
+        is_cancer = False
+
         params = {
             "query": name,
             "matchType": match_type
@@ -102,9 +107,14 @@ class BaseScraper(ABC):
             # not a know drug
             return False
         
-        link = data["meta"].get("drugInfoSummaryLink")
-        if not link:
-            return False
-        uri = link.get("uri", "")
-        return True if uri.startswith("https://www.cancer.gov") else False
-        
+        for result in data["results"]:
+            summary = result.get("drugInfoSummaryLink")
+            if not summary:
+                continue
+            uri = summary.get("uri")
+            if not uri:
+                continue
+            is_cancer = True if uri.startswith("https://www.cancer.gov") else False
+
+        return is_cancer
+         
