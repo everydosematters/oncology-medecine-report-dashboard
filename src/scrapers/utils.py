@@ -271,3 +271,43 @@ def get_first_name(names: str | list[str]) -> str:
     if isinstance(names, list):
         names = names[0]
     return names.split(" ")[0]
+
+
+def normalize_drug_name(name: str) -> str:
+    if not name:
+        return ""
+
+    name = name.lower()
+
+    # remove dosage (e.g., 500mg, 10 ml, etc.)
+    name = re.sub(r"\b\d+(\.\d+)?\s*(mg|mcg|g|ml|%)\b", "", name)
+
+    # remove punctuation
+    name = re.sub(r"[^a-z0-9\s]", " ", name)
+
+    # collapse whitespace
+    name = re.sub(r"\s+", " ", name).strip()
+
+    return name
+
+def extract_drug_tokens(text: str) -> list[str]:
+    """
+    Takes a string like:
+        'Abecma (Idecabtagene Vicleucel)'
+    and returns:
+        ['abecma', 'idecabtagene', 'vicleucel']
+    """
+    if not text:
+        return []
+
+    # Remove parentheses but keep their contents
+    cleaned = re.sub(r"[()]", "", text)
+
+    # Split on whitespace
+    tokens = cleaned.split()
+
+    # remove unwanted tokens like in and for
+    tokens = [token.lower() for token in tokens]
+    tokens = set(tokens) - set(["and", "for", "in", "tablets", "tablet", "injection", "injections", "pills", "pill", "sterile", "powder"])
+    
+    return list(tokens)

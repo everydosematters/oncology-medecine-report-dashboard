@@ -11,7 +11,8 @@ import requests
 from bs4 import BeautifulSoup
 
 from src.models import DrugAlert
-
+from .utils import normalize_drug_name, extract_drug_tokens
+import json
 
 class BaseScraper(ABC):
     """Abstract base class for all site-specific scrapers."""
@@ -30,6 +31,7 @@ class BaseScraper(ABC):
         self.timeout = timeout
         self.start_date = start_date
         self.search_url = "https://webapis.cancer.gov/drugdictionary/v1/Drugs/search"
+        self.nci_url = "https://www.cancer.gov/about-cancer/treatment/drugs/cancer-drugs"
 
         # Safe default UA
         self.args.setdefault("headers", {})
@@ -37,6 +39,7 @@ class BaseScraper(ABC):
             "User-Agent",
             "Mozilla/5.0 (compatible; EDM-Dashboard/1.0; +https://everydosematters.org)",
         )
+        self.oncology_drugs = []
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
         """Fetch a URL and return minimal response metadata plus parsed HTML."""
@@ -83,38 +86,34 @@ class BaseScraper(ABC):
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @final
-    def is_oncology(self, name: str, match_type:str ="Begins") -> bool:
+    def is_oncology(self, drug_name: str, oncology_set: list = []) -> bool:
+        if not oncology_set:
+            oncology_set = self.oncology_drugs
 
+        normalized = normalize_drug_name(drug_name)
+        return normalized in oncology_set
 
-        is_cancer = False
+    def fetch_cancer_drug_names(self) -> list[str]:
 
-        params = {
-            "query": name,
-            "matchType": match_type
-            }
+        response = requests.get(self.nci_url, headers=self.args["headers"], timeout=30)
+        response.raise_for_status()
 
-        resp = requests.get(url=self.search_url, params=params)
-        resp.raise_for_status()
-        data = resp.json()
+        soup = BeautifulSoup(response.text, "html.parser")
 
-        if data["meta"]["totalResults"] < 1:
-            params["matchType"] = "Contains"
-            resp = requests.get(url=self.search_url, params=params)
-            resp.raise_for_status()
-            data = resp.json()
-        
-        if data["meta"]["totalResults"] < 1:
-            # not a know drug
-            return False
-        
-        for result in data["results"]:
-            summary = result.get("drugInfoSummaryLink")
-            if not summary:
-                continue
-            uri = summary.get("uri")
-            if not uri:
-                continue
-            is_cancer = True if uri.startswith("https://www.cancer.gov") else False
+        drug_names = []
 
-        return is_cancer
-         
+        # The page lists drugs as links inside the main content area.
+        # We grab all anchor tags that link to individual drug dictionary pages.
+        uls = soup.select("ul.no-bullets.no-description")
+        for ul in uls:
+            for li in ul.select("li"):
+                name = li.get_text(strip=True)
+                drug_names = drug_names + extract_drug_tokens(name)
+                
+        # Remove duplicates while preserving order
+        drug_names = list(dict.fromkeys(drug_names))
+        self.oncology_drugs = drug_names
+        with open("data/nci_cancer_drugs.json", "w") as f:
+            json.dump(drug_names, f, indent=2)
+        return drug_names
+            

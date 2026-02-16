@@ -18,8 +18,8 @@ from .utils import (
     extract_brand_name_and_generic_name_from_title,
     normalize_key,
     table_to_grid,
-    select_one_text,
     get_first_name,
+    select_one_text,
     parse_date,
     extract_country_from_title,
 )
