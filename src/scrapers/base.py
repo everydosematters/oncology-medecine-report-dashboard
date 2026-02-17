@@ -86,12 +86,15 @@ class BaseScraper(ABC):
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @final
-    def is_oncology(self, drug_name: str, oncology_set: list = []) -> bool:
+    def is_oncology(self, drug_name: str, oncology_set: list = []) -> Optional[str]:
         if not oncology_set:
             oncology_set = self.oncology_drugs
 
         normalized = normalize_drug_name(drug_name)
-        return normalized in oncology_set
+        if normalized in oncology_set:
+            return normalized.capitalize()
+        else:
+            return None
 
     def fetch_cancer_drug_names(self) -> list[str]:
 

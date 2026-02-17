@@ -37,11 +37,24 @@ class FDAUSAScraper(BaseScraper):
         return f"[{start_dt:%Y%m%d} TO {end_dt:%Y%m%d}]"
 
     def _get_manufacturer(self, text: str):
-        manufacturer_match = re.search(r"Manufactured\s+by:\s*(.+?)(?=,\s*Distributed\s+by:|,\s*NDC|\.$)", text, re.IGNORECASE)
-        return manufacturer_match.group(1).strip() if manufacturer_match else None
+        pattern = r"(?:Manufactur(?:ed|e)?\s+by|Mfg|Mfd)\s*:?\s*([^,]+)"
+        manufacturer_match = re.search(pattern, text, re.IGNORECASE)
+        if manufacturer_match:
+            manufacture_match = re.sub(r"^\s*by\s*:?\s*", "", manufacturer_match.group(1), flags=re.IGNORECASE).strip()
+            return manufacture_match
+        return None
 
     def _get_distributor(self, text: str):
-        distributor_match = re.search(r"Distributed\s+by:\s*(.+?)(?=,\s*NDC|\.$)", text, re.IGNORECASE)
+        pattern = (
+            r"(?:"
+            r"Distribut(?:ed|e)?\s+by"   # Distributed by / Distribute by / Distribut by (partial)
+            r"|Distrib\s+by"            # Distrib by
+            r"|Dist\s+by"               # Dist by
+            r"|Distributor"             # Distributor:
+            r"|Distributed"             # Distributed:
+            r")\s*:?\s*([^,]+)"         # optional colon, capture until first comma
+        )
+        distributor_match = re.search(pattern, text, re.IGNORECASE)
         return distributor_match.group(1).strip() if distributor_match else None
 
     
@@ -49,10 +62,7 @@ class FDAUSAScraper(BaseScraper):
         """Fetch AJAX listing, scrape each detail page, filter oncology, return DrugAlerts."""
         
         results = []
-        # params = {
-        #     "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",
-        #     "limit": 1000
-        # }
+        
         params = {
             "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",
             "limit": 1000
@@ -67,8 +77,9 @@ class FDAUSAScraper(BaseScraper):
             query = product_name.split(" ")[0]
             manufacturer = self._get_manufacturer(description)
             distributor = self._get_distributor(description)
-        
-            if not self.is_oncology(query):
+            drug_name = self.is_oncology(query)
+
+            if not drug_name:
                 continue
             
             record_id = self.make_record_id(description)
@@ -84,8 +95,8 @@ class FDAUSAScraper(BaseScraper):
                     manufacturer=manufacturer,
                     distributor=distributor,
                     reason=record["reason_for_recall"],
-                    more_info=description + record["code_info"],
-                    product_name=product_name ,
+                    more_info=description + " " + record["code_info"],
+                    product_name=drug_name,
                     scraped_at=datetime.now(timezone.utc),
                 )
             )
