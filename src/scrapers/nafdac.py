@@ -196,9 +196,9 @@ class NafDacScraper(BaseScraper):
                 continue
 
             query = get_first_name(product_name)
-            get_nci_name = self.get_nci_name(query)
+            product_name = self.get_nci_name(query)
 
-            if not get_nci_name:
+            if not product_name:
                 continue
 
             publish_date = parse_date(publish_date)
@@ -210,14 +210,7 @@ class NafDacScraper(BaseScraper):
             manufacturer = clean_text(
                 row.select_one(fields["company"]).get_text(" ", strip=True)
             )
-            alert_type = (
-                clean_text(
-                    row.select_one(fields["alert_type"]).get_text(" ", strip=True)
-                )
-                if fields.get("alert_type") and row.select_one(fields["alert_type"])
-                else None
-            )
-
+            
             record_id = self.make_record_id(
                 self.source_id,
                 detail_url,
@@ -235,17 +228,10 @@ class NafDacScraper(BaseScraper):
                     source_url=detail_url,
                     publish_date=publish_date,
                     manufacturer=manufacturer,
-                    notes=parsed.get("title"),
-                    alert_type=alert_type,
+                    reason=parsed.get("title"),
                     product_name=product_name,
                     scraped_at=datetime.now(timezone.utc),
-                    brand_name=parsed.get("brand_name"),
-                    generic_name=parsed.get("generic_name"),
-                    batch_number=parsed.get("batch_number"),
-                    expiry_date=parse_date(parsed.get("expiry_date", [None])[0]),
-                    date_of_manufacture=parse_date(
-                        parsed.get("date_of_manufacture", [None])[0]
-                    ),
+                    more_info=None
                 )
             )
             print("=" * 20)

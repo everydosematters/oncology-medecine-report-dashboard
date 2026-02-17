@@ -10,7 +10,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from src.models import DrugAlert
-from .utils import normalize_drug_name, extract_drug_tokens
+from .utils import normalize_drug_name, extract_drug_tokens, read_json
 import json
 
 
@@ -24,6 +24,7 @@ class BaseScraper(ABC):
         args: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
         start_date: Optional[datetime] = None,
+        oncology_drugs_path: str = "data/nci_oncology_drugs.json"
     ) -> None:
         """Initialize the scraper with a base URL and optional request args."""
 
@@ -42,7 +43,8 @@ class BaseScraper(ABC):
             "User-Agent",
             "Mozilla/5.0 (compatible; EDM-Dashboard/1.0; +https://everydosematters.org)",
         )
-        self.oncology_drugs = []
+        self.oncology_drugs_path = oncology_drugs_path
+        self.oncology_drugs = read_json(self.oncology_drugs_path)
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
         """Fetch a URL and return minimal response metadata plus parsed HTML."""
@@ -98,6 +100,8 @@ class BaseScraper(ABC):
 
         if not approved_drugs:
             approved_drugs = self.oncology_drugs
+        if not approved_drugs:
+            approved_drugs = self.fetch_oncology_drug_names()
 
         normalized = normalize_drug_name(drug_name)
         if normalized in approved_drugs:
