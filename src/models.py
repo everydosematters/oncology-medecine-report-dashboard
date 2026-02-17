@@ -8,7 +8,6 @@ from typing import Optional
 import pydantic as pyd
 
 
-
 class DrugAlert(pyd.BaseModel):
     # Identifiers / provenance (required)
     record_id: str

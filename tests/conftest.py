@@ -95,7 +95,7 @@ def nafdac_scraper(nafdac_mod):
         "filters": {
             "oncology_keywords": [
                 "oncology",
-                "cancer",
+                "oncology",
                 "tumour",
                 "chemotherapy",
                 "immunotherapy",

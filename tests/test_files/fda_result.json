@@ -1,0 +1,540 @@
+{
+    "meta": {
+      "disclaimer": "Do not rely on openFDA to make decisions regarding medical care. While we make every effort to ensure that data is accurate, you should assume all results are unvalidated. We may limit or otherwise restrict your access to the API in line with our Terms of Service.",
+      "terms": "https://open.fda.gov/terms/",
+      "license": "https://open.fda.gov/license/",
+      "last_updated": "2026-02-04",
+      "results": {
+        "skip": 0,
+        "limit": 10,
+        "total": 767
+      }
+    },
+    "results": [
+      {
+        "status": "Ongoing",
+        "city": "Exton",
+        "state": "PA",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {},
+        "product_type": "Drugs",
+        "event_id": "97808",
+        "recalling_firm": "ProRx LLC",
+        "address_1": "619 Jeffers Cir",
+        "address_2": "N/A",
+        "postal_code": "19341-2540",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "TX and UT",
+        "recall_number": "D-0115-2026",
+        "product_description": "Hereceptin, 10 mg/4 mL (2.5 mg/mL), 4mL Multidose Vial, For Subcutaneous Use, Rx Only, Mfd by: ProRx, 619 Jeffers Cir, Exton, PA 19341.  NDC:  84139-225-04",
+        "product_quantity": "8,400 vials",
+        "reason_for_recall": "Lack of Assurance of Sterility",
+        "recall_initiation_date": "20251015",
+        "center_classification_date": "20251027",
+        "report_date": "20251105",
+        "code_info": "Lot, Best Use Date (BUD):  Lot PRORX050925-1, BUD November 4, 2025;  Lot ProRx051425-5, BUD November 10, 2025; Lot ProRx051425-6, BUD November 10, 2025"
+      },
+      {
+        "status": "Ongoing",
+        "city": "Bengaluru",
+        "state": "N/A",
+        "country": "India",
+        "classification": "Class II",
+        "openfda": {
+          "application_number": [
+            "ANDA209101"
+          ],
+          "brand_name": [
+            "HALOPERIDOL DECANOATE"
+          ],
+          "generic_name": [
+            "HALOPERIDOL DECANOATE"
+          ],
+          "manufacturer_name": [
+            "BluePoint Laboratories"
+          ],
+          "product_ndc": [
+            "68001-578",
+            "68001-579",
+            "68001-580",
+            "68001-581",
+            "68001-582"
+          ],
+          "product_type": [
+            "HUMAN PRESCRIPTION DRUG"
+          ],
+          "route": [
+            "INTRAMUSCULAR"
+          ],
+          "substance_name": [
+            "HALOPERIDOL DECANOATE"
+          ],
+          "rxcui": [
+            "859871",
+            "1719803",
+            "1719862"
+          ],
+          "spl_id": [
+            "048557ea-f859-f0f2-e063-6294a90af5ab"
+          ],
+          "spl_set_id": [
+            "f2d14406-2ad4-4c5b-9c24-a026f27b415d"
+          ],
+          "package_ndc": [
+            "68001-579-59",
+            "68001-579-48",
+            "68001-580-41",
+            "68001-581-41",
+            "68001-581-48",
+            "68001-581-82",
+            "68001-578-59",
+            "68001-578-48",
+            "68001-582-41"
+          ],
+          "is_original_packager": [
+            true
+          ],
+          "upc": [
+            "0368001578592",
+            "0368001581417",
+            "0368001579599",
+            "0368001582414"
+          ],
+          "unii": [
+            "AC20PJ4101"
+          ]
+        },
+        "product_type": "Drugs",
+        "event_id": "96569",
+        "recalling_firm": "Somerset Therapeutics Private Limited",
+        "address_1": "54/1 Budihal Village",
+        "address_2": "N/A",
+        "postal_code": "N/A",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "U.S. Nationwide",
+        "recall_number": "D-0356-2025",
+        "product_description": "Haloperidol Decanoate Injection 50mg/mL, 1mL Single-Dose Vial, Rx Only, Manufactured by: Somerset Therapeutics Limited, Kamataka India, Manufactured for: BluePoint Laboratories NDC 68001-580-41",
+        "product_quantity": "4956 vials",
+        "reason_for_recall": "Lack of Assurance of Sterility: Media fill with bacterial contamination",
+        "recall_initiation_date": "20250321",
+        "center_classification_date": "20250408",
+        "report_date": "20250416",
+        "code_info": "A240467B, exp. date 07/2026"
+      },
+      {
+        "status": "Ongoing",
+        "city": "Mahwah",
+        "state": "NJ",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {
+          "application_number": [
+            "ANDA078427"
+          ],
+          "brand_name": [
+            "CETIRIZINE HCL"
+          ],
+          "generic_name": [
+            "CETIRIZINE"
+          ],
+          "manufacturer_name": [
+            "GLENMARK THERAPEUTICS INC., USA"
+          ],
+          "product_ndc": [
+            "72657-128",
+            "72657-129",
+            "72657-130",
+            "72657-131"
+          ],
+          "product_type": [
+            "HUMAN OTC DRUG"
+          ],
+          "route": [
+            "ORAL"
+          ],
+          "substance_name": [
+            "CETIRIZINE HYDROCHLORIDE"
+          ],
+          "rxcui": [
+            "1014676",
+            "1014678"
+          ],
+          "spl_id": [
+            "9b19f466-3796-44b8-a637-092926c275f1"
+          ],
+          "spl_set_id": [
+            "04b08c52-5390-4cdb-a9e7-fca81fffdc73"
+          ],
+          "package_ndc": [
+            "72657-128-30",
+            "72657-128-45",
+            "72657-128-60",
+            "72657-128-70",
+            "72657-128-90",
+            "72657-128-08",
+            "72657-128-14",
+            "72657-128-15",
+            "72657-128-18",
+            "72657-128-24",
+            "72657-128-03",
+            "72657-128-35",
+            "72657-128-04",
+            "72657-128-81",
+            "72657-128-82",
+            "72657-128-84",
+            "72657-128-86",
+            "72657-128-41",
+            "72657-129-30",
+            "72657-129-45",
+            "72657-129-60",
+            "72657-129-70",
+            "72657-129-90",
+            "72657-129-08",
+            "72657-129-14",
+            "72657-129-15",
+            "72657-129-18",
+            "72657-129-24",
+            "72657-129-03",
+            "72657-129-35",
+            "72657-129-04",
+            "72657-129-81",
+            "72657-129-82",
+            "72657-129-84",
+            "72657-129-86",
+            "72657-129-41",
+            "72657-130-05",
+            "72657-131-89"
+          ],
+          "is_original_packager": [
+            true
+          ],
+          "upc": [
+            "0372657128353",
+            "0372657129350"
+          ],
+          "unii": [
+            "64O047KTOA"
+          ]
+        },
+        "product_type": "Drugs",
+        "event_id": "96474",
+        "recalling_firm": "Glenmark Pharmaceuticals Inc., USA",
+        "address_1": "750 Corporate Dr",
+        "address_2": "N/A",
+        "postal_code": "07430-2009",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "U.S. Nationwide",
+        "recall_number": "D-0348-2025",
+        "product_description": "Cetirizine Hydrochloride Tablets, USP, 10mg, 365-count packs, Rx Only, Manufactured for: Glenmark Therapeutics Inc., Distributed by: Amazon. NDC# 72657-129-35",
+        "product_quantity": "N/A",
+        "reason_for_recall": "CGMP Deviations",
+        "recall_initiation_date": "20250313",
+        "center_classification_date": "20250408",
+        "report_date": "20250416",
+        "code_info": "Lot #  17231980, ep.. date Aug-25 Amazon 17232044, ep.. date Aug-25 Walmart  17241436, ep.. date Jul-26 Amazon 17241437, ep.. date Jul-26 Amazon 17241455, ep.. date Jul-26 Amazon 17241456, ep.. date Aug-26 Amazon 17241457, ep.. date Aug-26 Amazon 17241892, ep.. date Oct-26 Amazon 17241893, ep.. date Oct-26 Amazon"
+      },
+      {
+        "status": "Ongoing",
+        "city": "Ledgewood",
+        "state": "NJ",
+        "country": "United States",
+        "classification": "Class III",
+        "openfda": {},
+        "product_type": "Drugs",
+        "event_id": "97183",
+        "recalling_firm": "Imprimis NJOF, LLC",
+        "address_1": "1705 Route 46 Ste 6B",
+        "address_2": "N/A",
+        "postal_code": "07852-9720",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "Nationwide in the USA",
+        "recall_number": "D-0536-2025",
+        "product_description": "Tropicamide-Proparacaine-Phenylephrine-Ketorolac, Sterile Ophthalmic Solution, 1% 0.5% 2.5% 0.5%, 5mL, 2x5ML vial per carton, Rx Only, Imprimis NJOF, LLC, 1705 Route 46 West, Unit 6B, Ledgewood, NJ 07852, NDC 71384-733-05.",
+        "product_quantity": "2,890 vials",
+        "reason_for_recall": "Sub-Potent Drug: Subpotent assay results during stability testing.",
+        "recall_initiation_date": "20250709",
+        "center_classification_date": "20250721",
+        "report_date": "20250730",
+        "code_info": "Lot: 25MAR032, Exp. 07/16/2025."
+      },
+      {
+        "status": "Ongoing",
+        "city": "Wichita",
+        "state": "KS",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {},
+        "product_type": "Drugs",
+        "event_id": "97540",
+        "recalling_firm": "Fagron Compounding Services",
+        "address_1": "8710 E 34th St N",
+        "address_2": "N/A",
+        "postal_code": "67226-2636",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "USA nationwide.",
+        "recall_number": "D-0646-2025",
+        "product_description": "bevacizumab (Avastin) Injection, 1.25mg/0.05mL (0.12 mL Fill), Sterile Single-Dose Syringe, Fagron Sterile Services, 8710 E 34th St N. Wichita, KS 67226",
+        "product_quantity": "109,320 syringes",
+        "reason_for_recall": "Lack of Assurance of Sterility",
+        "recall_initiation_date": "20250829",
+        "center_classification_date": "20250912",
+        "report_date": "20250924",
+        "code_info": "Lot #: C274-000044756, C274-000044757, Exp 8-30-2025; C274-000044832, C274-000044833, Exp 9-4-2025; C274-000044882, C274-000044883, Exp 9-6-2025, C274-000044972, Exp 9-8-2025; C274-000045004, C274-000045005, Exp 9-18-2025 C274-000045108, exp. date 9-13-2025 C274-000045109, exp. date 9-13-2025 C274-000045136, exp. date 9-14-2025 C274-000045137, exp. date 9-14-2025 C274-000045289, exp. date 9-20-2025 C274-000045290, exp. date 9-20-2025 C274-000045350, exp. date 9-22-2025 C274-000045351, exp. date 9-22-2025 C274-000045387, exp. date 9-25-2025 C274-000045388, exp. date 9-25-2025 C274-000045516, exp. date 9-27-2025 C274-000045517, exp. date 9-27-2025 C274-000045586, exp. date 10-2-2025 C274-000045587, exp. date 10-2-2025 C274-000045676, exp. date 10-4-2025 C274-000045677, exp. date 10-4-2025 C274-000045707, exp. date 10-5-2025 C274-000045708, exp. date 10-5-2025 C274-000045754, exp. date 10-9-2025 C274-000045755, exp. date 10-9-2025 C274-000045840, exp. date 10-11-2025 C274-000045841, exp. date 10-11-2025 C274-000046048, exp. date 10-24-2025 C274-000046049, exp. date 10-24-2025 C274-000046095, exp. date 10-25-2025 C274-000046096, exp. date 10-25-2025 C274-000046122, exp. date 10-26-2025 C274-000046123, exp. date 10-26-2025 C274-000046164, exp. date 10-30-2025 C274-000046165, exp. date 10-30-2025 C274-000046191, exp. date 10-31-2025 C274-000046192, exp. date 10-31-2025 C274-000046240, exp. date 11-1-2025 C274-000046241, exp. date 11-1-2025 C274-000046315, exp. date 11-6-2025 C274-000046316, exp. date 11-6-2025 C274-000046345, exp. date 11-7-2025 C274-000046346, exp. date 11-7-2025 C274-000046515, exp. date 11-14-2025 C274-000046516, exp. date 11-14-2025 C274-000046603, exp. date 11-16-2025 C274-000046657, exp. date 11-20-2025 C274-000047136, exp. date 12-12-2025"
+      },
+      {
+        "status": "Ongoing",
+        "city": "Ta. Kadi, District Mehsana",
+        "state": "N/A",
+        "country": "India",
+        "classification": "Class II",
+        "openfda": {},
+        "product_type": "Drugs",
+        "event_id": "96797",
+        "recalling_firm": "KENIL HEALTHCARE PRIVATE LIMITED",
+        "address_1": "Plot 319",
+        "address_2": "Village Acharasan, Ankhol-Vamaj Road",
+        "postal_code": "N/A",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Two or more of the following: Email, Fax, Letter, Press Release, Telephone, Visit",
+        "distribution_pattern": "DE and NC",
+        "recall_number": "D-0438-2025",
+        "product_description": "Nature Mint Anticavity Fluoride Toothpaste, Sodium monofluorophosphate 0.76%, NET WT 0.85 OZ (24 grams) Tube, Made in India, Dist. by Bob Barker Co. Inc., Fuquay-Varina, NC 27526, NDC 53247-131-03",
+        "product_quantity": "616,160 Tubes",
+        "reason_for_recall": "CGMP Deviations",
+        "recall_initiation_date": "20250424",
+        "center_classification_date": "20250519",
+        "report_date": "20250528",
+        "code_info": "Lot B0014, B0015, B0022, B0023, Exp Date: 05/31/2026; Lot B0024, B0025, B0026, B0027, B0033, B0034, B0035, B0039, B0040, B0041, B0045, Exp Date: 06/30/2026; Lot B0046, Exp Date: 07/31/2026"
+      },
+      {
+        "status": "Ongoing",
+        "city": "Foster City",
+        "state": "CA",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {
+          "application_number": [
+            "NDA208341"
+          ],
+          "brand_name": [
+            "SOFOSBUVIR AND VELPATASVIR"
+          ],
+          "generic_name": [
+            "VELPATASVIR AND SOFOSBUVIR"
+          ],
+          "manufacturer_name": [
+            "Asegua Therapeutics LLC"
+          ],
+          "product_ndc": [
+            "72626-2701"
+          ],
+          "product_type": [
+            "HUMAN PRESCRIPTION DRUG"
+          ],
+          "route": [
+            "ORAL"
+          ],
+          "substance_name": [
+            "SOFOSBUVIR",
+            "VELPATASVIR"
+          ],
+          "rxcui": [
+            "1799212"
+          ],
+          "spl_id": [
+            "314b9ef7-c6e5-44c9-9fbf-b0d35a24cd7d"
+          ],
+          "spl_set_id": [
+            "d0c1a945-4440-4b5c-81aa-693ed3db597c"
+          ],
+          "package_ndc": [
+            "72626-2701-1"
+          ],
+          "is_original_packager": [
+            true
+          ],
+          "nui": [
+            "N0000191493",
+            "N0000191258",
+            "N0000191256",
+            "N0000190113",
+            "N0000185503",
+            "N0000190107",
+            "N0000190108",
+            "N0000190109"
+          ],
+          "pharm_class_epc": [
+            "Hepatitis C Virus Nucleotide Analog NS5B Polymerase Inhibitor [EPC]",
+            "Hepatitis C Virus NS5A Inhibitor [EPC]"
+          ],
+          "pharm_class_moa": [
+            "RNA Replicase Inhibitors [MoA]",
+            "Breast Cancer Resistance Protein Inhibitors [MoA]",
+            "P-Glycoprotein Inhibitors [MoA]",
+            "Organic Anion Transporting Polypeptide 1B1 Inhibitors [MoA]",
+            "Organic Anion Transporting Polypeptide 1B3 Inhibitors [MoA]",
+            "Organic Anion Transporting Polypeptide 2B1 Inhibitors [MoA]"
+          ],
+          "unii": [
+            "WJ6CA3ZU8B",
+            "KCU0C7RS7Z"
+          ]
+        },
+        "product_type": "Drugs",
+        "event_id": "96434",
+        "recalling_firm": "ASEGUA THERAPEUTICS LLC",
+        "address_1": "333 Lakeside Dr",
+        "address_2": "N/A",
+        "postal_code": "94404-1147",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "US Nationwide",
+        "recall_number": "D-0313-2025",
+        "product_description": "bevacizumab (Avastin) Injection, 1.25mg/0.05mL (0.12 mL Fill), Sterile Single-Dose Syringe, Fagron Sterile Services, 8710 E 34th St N. Wichita, KS 67226",
+        "product_quantity": "18,541 cartons.",
+        "reason_for_recall": "Defective Container: blister packs not properly sealed resulting in tablets being loose in the carton.",
+        "recall_initiation_date": "20250307",
+        "center_classification_date": "20250407",
+        "report_date": "20250416",
+        "code_info": "Lot# 24ASV002UA, Exp Date: 6/30/2028"
+      },
+      {
+        "status": "Ongoing",
+        "city": "Mahwah",
+        "state": "NJ",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {
+          "application_number": [
+            "ANDA204637"
+          ],
+          "brand_name": [
+            "AZELAIC ACID"
+          ],
+          "generic_name": [
+            "AZELAIC ACID"
+          ],
+          "manufacturer_name": [
+            "Glenmark Pharmaceuticals Inc., USA"
+          ],
+          "product_ndc": [
+            "68462-626"
+          ],
+          "product_type": [
+            "HUMAN PRESCRIPTION DRUG"
+          ],
+          "route": [
+            "TOPICAL"
+          ],
+          "substance_name": [
+            "AZELAIC ACID"
+          ],
+          "rxcui": [
+            "1041518"
+          ],
+          "spl_id": [
+            "28cca0c1-2f38-4fa2-8aaf-d3c8978b0fc6"
+          ],
+          "spl_set_id": [
+            "0b5ab22e-c78a-4429-9a76-a4ba2d11fcde"
+          ],
+          "package_ndc": [
+            "68462-626-52"
+          ],
+          "is_original_packager": [
+            true
+          ],
+          "upc": [
+            "0368462626528"
+          ],
+          "nui": [
+            "N0000008841",
+            "N0000009982"
+          ],
+          "pharm_class_pe": [
+            "Decreased Protein Synthesis [PE]",
+            "Decreased Sebaceous Gland Activity [PE]"
+          ],
+          "unii": [
+            "F2VW3D43YT"
+          ]
+        },
+        "product_type": "Drugs",
+        "event_id": "97619",
+        "recalling_firm": "Glenmark Pharmaceuticals Inc., USA",
+        "address_1": "750 Corporate Dr",
+        "address_2": "N/A",
+        "postal_code": "07430-2009",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "Nationwide within the United States",
+        "recall_number": "D-0662-2025",
+        "product_description": "Azelaic Acid Gel, 15%, 50 grams, For Topical Use Only, Rx only, Manufactured by: Glenmark Pharmaceuticals Limited Colvale-Bardez, Goa 403513, India, Manufactured for: Glenmark Pharmaceuticals Inc., USA, Mahwah, NJ 07430, NDC 68462-626-52",
+        "product_quantity": "13824 tubes",
+        "reason_for_recall": "CGMP Deviations: Market complaints received for gritty texture (grainy)",
+        "recall_initiation_date": "20250917",
+        "center_classification_date": "20250924",
+        "report_date": "20251001",
+        "code_info": "Batch # 19252524, Exp Date: May 2027",
+        "more_code_info": ""
+      },
+      {
+        "status": "Ongoing",
+        "city": "Canoga Park",
+        "state": "CA",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {},
+        "product_type": "Drugs",
+        "event_id": "97558",
+        "recalling_firm": "Private Label Skin Care Inc.",
+        "address_1": "8200 Remmet Ave",
+        "address_2": "N/A",
+        "postal_code": "91304-4156",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "Letter",
+        "distribution_pattern": "CA, GA only",
+        "recall_number": "D-0668-2025",
+        "product_description": "edunn clarity, BP Treatment Cleanser 10% (Benzoyl Peroxide 10%), 7 oz (201g) Uptown Medi Spa, Phoenix, AZ.",
+        "product_quantity": "N/A",
+        "reason_for_recall": "Chemical Contamination: This recall has been initiated due to elevated levels of benzene that was discovered during post consume awareness with benzoyl peroxide products.",
+        "recall_initiation_date": "20250912",
+        "center_classification_date": "20250924",
+        "report_date": "20251001",
+        "code_info": "Lot # 58170A and 58172A, Exp Date: 09/2025",
+        "more_code_info": ""
+      },
+      {
+        "status": "Ongoing",
+        "city": "Englewood",
+        "state": "CO",
+        "country": "United States",
+        "classification": "Class II",
+        "openfda": {},
+        "product_type": "Drugs",
+        "event_id": "96742",
+        "recalling_firm": "Thrive Health and Wellness, LLC, dba Thrive Health Solutions (Colorado)",
+        "address_1": "88 Inverness Cir E Unit A204",
+        "address_2": "",
+        "postal_code": "80112-5521",
+        "voluntary_mandated": "Voluntary: Firm initiated",
+        "initial_firm_notification": "E-Mail",
+        "distribution_pattern": "USA Nationwide",
+        "recall_number": "D-0480-2025",
+        "product_description": "Semaglutide, 5 mg/mL, pre-filled syringe, Thrive Health Solutions, 88 Inverness, Cir E, Suite A-204, Englewood, CO 80112",
+        "product_quantity": "164 syringes",
+        "reason_for_recall": "Lack of Assurance of Sterility",
+        "recall_initiation_date": "20250521",
+        "center_classification_date": "20250620",
+        "report_date": "20250702",
+        "code_info": "Lot #: C03035J, Exp 7/3/2025, H202959, exp 7/6/2025; AB20N110720 , exp 7/7/2025 ; AB60N1121, exp 7/7/2025; PRX022225-1 , exp 8/24/2025 ; U122024 , exp 10/26/2025",
+        "more_code_info": ""
+      }
+    ]
+  }

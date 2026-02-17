@@ -40,14 +40,14 @@ class NafDacScraper(BaseScraper):
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
-    def _is_oncology(self, text: str) -> bool:
+    def _get_nci_name(self, text: str) -> bool:
         """Return True if the given text likely refers to an oncology product."""
 
         filters = self.cfg.get("filters") or {}
-        keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
+        keywords = filters.get("oncology_keywords") or ["oncology", "oncology"]
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
-        # FIXME do a more specific filter some drugs cause cancer and are being trapped
+        # FIXME do a more specific filter some drugs cause oncology and are being trapped
 
     def _extract_product_specs_from_text(
         self, *soup: BeautifulSoup
@@ -182,18 +182,23 @@ class NafDacScraper(BaseScraper):
             # standardize
             detail_scraped = self.scrape(detail_url)
             parsed = self._parse_detail_page(detail_scraped["html"])
-            
-            product_name = parsed.get("product_name") or parsed.get("brand_name") or parsed.get("generic_name") or None
-            
+
+            product_name = (
+                parsed.get("product_name")
+                or parsed.get("brand_name")
+                or parsed.get("generic_name")
+                or None
+            )
+
             if not product_name:
                 print("no product name detected")
                 print(row)
                 continue
 
             query = get_first_name(product_name)
-            is_oncology = self.is_oncology(query)
+            get_nci_name = self.get_nci_name(query)
 
-            if not is_oncology:
+            if not get_nci_name:
                 continue
 
             publish_date = parse_date(publish_date)
@@ -257,8 +262,6 @@ class NafDacScraper(BaseScraper):
         source_country = extract_country_from_title(title)
 
         brand_name, generic_name = extract_brand_name_and_generic_name_from_title(title)
-
-
 
         if soup.find("table"):
             product_specs = self._extract_product_specs(soup)

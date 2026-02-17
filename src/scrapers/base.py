@@ -1,6 +1,5 @@
 """Base scraper utilities shared across site-specific scrapers."""
 
-
 import hashlib
 from abc import ABC, abstractmethod
 from datetime import date, datetime
@@ -14,6 +13,7 @@ from src.models import DrugAlert
 from .utils import normalize_drug_name, extract_drug_tokens
 import json
 
+
 class BaseScraper(ABC):
     """Abstract base class for all site-specific scrapers."""
 
@@ -26,12 +26,15 @@ class BaseScraper(ABC):
         start_date: Optional[datetime] = None,
     ) -> None:
         """Initialize the scraper with a base URL and optional request args."""
+
         self.url = url
         self.args = args or {}
         self.timeout = timeout
         self.start_date = start_date
-        self.search_url = "https://webapis.cancer.gov/drugdictionary/v1/Drugs/search"
-        self.nci_url = "https://www.cancer.gov/about-cancer/treatment/drugs/cancer-drugs"
+        self.search_url = "https://webapis.oncology.gov/drugdictionary/v1/Drugs/search"
+        self.nci_url = (
+            "https://www.oncology.gov/about-oncology/treatment/drugs/oncology-drugs"
+        )
 
         # Safe default UA
         self.args.setdefault("headers", {})
@@ -43,6 +46,7 @@ class BaseScraper(ABC):
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
         """Fetch a URL and return minimal response metadata plus parsed HTML."""
+
         target = url or self.url
         resp = requests.get(target, timeout=self.timeout, **self.args)
         resp.raise_for_status()
@@ -58,9 +62,10 @@ class BaseScraper(ABC):
             "status_code": resp.status_code,
             "html": soup,
         }
-    
+
     def get_json(self, url: str, params: dict) -> Dict:
         """Fetch a json instead."""
+
         r = requests.get(url, params=params)
         data = r.json()
         return data
@@ -68,11 +73,13 @@ class BaseScraper(ABC):
     @abstractmethod
     def standardize(self) -> List[DrugAlert]:
         """Standardize the scraper's data into a list of DrugAlert objects."""
+
         raise NotImplementedError
 
     @final
     def make_record_id(*parts: Any) -> str:
         """Build a stable record identifier from heterogeneous parts."""
+
         normalized: List[str] = []
         for p in parts:
             if p is None:
@@ -86,17 +93,20 @@ class BaseScraper(ABC):
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @final
-    def is_oncology(self, drug_name: str, oncology_set: list = []) -> Optional[str]:
-        if not oncology_set:
-            oncology_set = self.oncology_drugs
+    def get_nci_name(self, drug_name: str, approved_drugs: list = []) -> Optional[str]:
+        """Look up the NCI dictionary for the drug name."""
+
+        if not approved_drugs:
+            approved_drugs = self.oncology_drugs
 
         normalized = normalize_drug_name(drug_name)
-        if normalized in oncology_set:
+        if normalized in approved_drugs:
             return normalized.capitalize()
         else:
             return None
 
-    def fetch_cancer_drug_names(self) -> list[str]:
+    def fetch_oncology_drug_names(self) -> list[str]:
+        """Get the approved cancer drugs."""
 
         response = requests.get(self.nci_url, headers=self.args["headers"], timeout=30)
         response.raise_for_status()
@@ -112,11 +122,10 @@ class BaseScraper(ABC):
             for li in ul.select("li"):
                 name = li.get_text(strip=True)
                 drug_names = drug_names + extract_drug_tokens(name)
-                
+
         # Remove duplicates while preserving order
         drug_names = list(dict.fromkeys(drug_names))
         self.oncology_drugs = drug_names
-        with open("data/nci_cancer_drugs.json", "w") as f:
+        with open("data/nci_oncology_drugs.json", "w") as f:
             json.dump(drug_names, f, indent=2)
         return drug_names
-            

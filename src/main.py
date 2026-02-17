@@ -20,7 +20,7 @@ def main():
 
     # Example: run FDA USA scraper from 2024-01-01 onwards
     fdausa = FDAUSAScraper(sources["FDA_US"], datetime(2025, 1, 1))
-    fdausa.fetch_cancer_drug_names()
+    fdausa.fetch_oncology_drug_names()
     fda_records = fdausa.standardize()
 
     df = pd.DataFrame([record.model_dump() for record in fda_records])
