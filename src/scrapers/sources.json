@@ -3,66 +3,8 @@
     "source_id": "FDA_US",
     "source_country": "United States",
     "source_org": "U.S. Food and Drug Administration (FDA)",
-    "base_url": "https://www.fda.gov",
-    "ajax_url": "https://www.fda.gov/datatables/views/ajax",
-    "type": "listing_with_detail_pages",
-    "request": {
-      "headers": {
-        "Accept": "application/json, text/javascript, */*; q=0.01",
-        "X-Requested-With": "XMLHttpRequest",
-        "Referer": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
-        "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
-      }
-    },
-    "listing": {
-      "type": "ajax",
-      "ajax_url": "https://www.fda.gov/datatables/views/ajax",
-      "params": {
-        "search_api_fulltext": "",
-        "field_regulated_product_field": "2312",
-        "field_terminated_recall": "All",
-        "_drupal_ajax": "1",
-        "_wrapper_format": "drupal_ajax",
-        "pager_element": 0,
-        "view_args": "",
-        "view_base_path": "safety/recalls-market-withdrawals-safety-alerts/datatables-data",
-        "view_display_id": "recall_datatable_block_1",
-        "view_name": "recall_solr_index",
-        "view_path": "/safety/recalls-market-withdrawals-safety-alerts",
-        "search[value]": "",
-        "search[regex]": "false"
-      },
-      "pagination": {
-        "page_size": 25,
-        "max_pages": 5
-      },
-      "columns": {
-        "date_index": 0,
-        "brand_link_index": 1,
-        "description_index": 2,
-        "product_type_index": 3,
-        "reason_index": 4,
-        "company_index": 5
-      }
-    },
-    "detail_page": {
-      "title_selector": "h1",
-      "body_selector": "p",
-      "publish_date_selector": "time"
-    },
-    "filters": {
-      "require_oncology": true,
-      "oncology_keywords": [
-        "oncology",
-        "cancer",
-        "tumour",
-        "chemotherapy",
-        "immunotherapy"
-      ]
-    },
-    "defaults": {
-      "alert_type": "Recall / Safety Alert"
-    }
+    "base_url": "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts",
+    "api_endpoint": "https://api.fda.gov/drug/enforcement.json"
   },
   "NAFDAC_NG": {
     "source_id": "NAFDAC_NG",

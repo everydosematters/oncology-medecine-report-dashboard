@@ -46,7 +46,7 @@ def _fda_ajax_config() -> Dict[str, Any]:
         },
         "filters": {
             "require_oncology": True,
-            "oncology_keywords": ["oncology", "cancer", "chemotherapy"],
+            "oncology_keywords": ["oncology", "oncology", "chemotherapy"],
         },
         "defaults": {"alert_type": "Recall / Safety Alert"},
     }

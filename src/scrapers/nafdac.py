@@ -18,8 +18,8 @@ from .utils import (
     extract_brand_name_and_generic_name_from_title,
     normalize_key,
     table_to_grid,
+    get_first_name,
     select_one_text,
-    select_all_text,
     parse_date,
     extract_country_from_title,
 )
@@ -40,14 +40,14 @@ class NafDacScraper(BaseScraper):
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
-    def _is_oncology(self, text: str) -> bool:
+    def _get_nci_name(self, text: str) -> bool:
         """Return True if the given text likely refers to an oncology product."""
 
         filters = self.cfg.get("filters") or {}
-        keywords = filters.get("oncology_keywords") or ["oncology", "cancer"]
+        keywords = filters.get("oncology_keywords") or ["oncology", "oncology"]
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
-        # FIXME do a more specific filter some drugs cause cancer and are being trapped
+        # FIXME do a more specific filter some drugs cause oncology and are being trapped
 
     def _extract_product_specs_from_text(
         self, *soup: BeautifulSoup
@@ -181,9 +181,24 @@ class NafDacScraper(BaseScraper):
 
             # standardize
             detail_scraped = self.scrape(detail_url)
-            parsed, is_oncology = self._parse_detail_page(detail_scraped["html"])
+            parsed = self._parse_detail_page(detail_scraped["html"])
 
-            if not is_oncology:
+            product_name = (
+                parsed.get("product_name")
+                or parsed.get("brand_name")
+                or parsed.get("generic_name")
+                or None
+            )
+
+            if not product_name:
+                print("no product name detected")
+                print(row)
+                continue
+
+            query = get_first_name(product_name)
+            get_nci_name = self.get_nci_name(query)
+
+            if not get_nci_name:
                 continue
 
             publish_date = parse_date(publish_date)
@@ -222,10 +237,7 @@ class NafDacScraper(BaseScraper):
                     manufacturer=manufacturer,
                     notes=parsed.get("title"),
                     alert_type=alert_type,
-                    product_name=parsed.get("product_name")
-                    or parsed.get("brand_name")
-                    or parsed.get("generic_name")
-                    or None,
+                    product_name=product_name,
                     scraped_at=datetime.now(timezone.utc),
                     brand_name=parsed.get("brand_name"),
                     generic_name=parsed.get("generic_name"),
@@ -241,7 +253,7 @@ class NafDacScraper(BaseScraper):
             print("=" * 20)
         return results
 
-    def _parse_detail_page(self, soup: BeautifulSoup) -> Tuple[Dict[str, Any], bool]:
+    def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
 
         title = select_one_text(soup, "h1")
 
@@ -250,11 +262,6 @@ class NafDacScraper(BaseScraper):
         source_country = extract_country_from_title(title)
 
         brand_name, generic_name = extract_brand_name_and_generic_name_from_title(title)
-
-        body = select_all_text(soup, "p")
-
-        if not self._is_oncology(body):
-            return {}, False
 
         if soup.find("table"):
             product_specs = self._extract_product_specs(soup)
@@ -268,7 +275,7 @@ class NafDacScraper(BaseScraper):
             "generic_name": generic_name,
             "source_country": source_country,
             **product_specs,
-        }, True
+        }
 
     def standardize(self) -> List[DrugAlert]:
         listing_url = self.cfg[

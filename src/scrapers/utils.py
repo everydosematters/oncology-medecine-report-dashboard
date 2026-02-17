@@ -42,13 +42,6 @@ CANONICAL_MAP = {
 }
 
 
-def load_source_cfg(sources_path: str, source_key: str) -> Dict[str, Any]:
-    data = json.loads(Path(sources_path).read_text(encoding="utf-8"))
-    try:
-        return data[source_key]
-    except KeyError as e:
-        raise KeyError(f"Source key '{source_key}' not found in {sources_path}") from e
-
 
 def clean_text(s: Optional[str]) -> Optional[str]:
     if not s:
@@ -99,43 +92,8 @@ def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
     return clean_text(el.get_text(" ", strip=True))
 
 
-def select_all_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
-    """
-    Return a single cleaned string concatenating text from all elements
-    matching the selector.
-    """
-    if not selector:
-        return None
-
-    elements = soup.select(selector)
-    if not elements:
-        return None
-
-    parts = []
-    for el in elements:
-        char = el.get_text(" ", strip=True)
-        if char:
-            char = " ".join(char.split())
-            parts.append(char)
-
-    return " ".join(parts) if parts else None
-
-
 def absolutize(base_url: str, href: str) -> str:
     return urljoin(base_url, href)
-
-
-def extract_by_regex(body_text: str, pattern: str) -> Optional[str]:
-    if not body_text or not pattern:
-        return None
-
-    m = re.search(pattern, body_text, flags=re.IGNORECASE)
-    if not m:
-        return None
-
-    # If the regex has capturing groups, take the last captured group.
-    value = m.group(m.lastindex) if m.lastindex else m.group(0)
-    return clean_text(value)
 
 
 def parse_date(value: Optional[str]) -> Optional[datetime]:
@@ -265,3 +223,64 @@ def table_to_grid(tbl: Tag) -> list[list[str]]:
             out.append(rr)
 
     return out
+
+
+def get_first_name(names: str | list[str]) -> str:
+    if isinstance(names, list):
+        names = names[0]
+    return names.split(" ")[0]
+
+
+def normalize_drug_name(name: str) -> str:
+    if not name:
+        return ""
+
+    name = name.lower()
+
+    # remove dosage (e.g., 500mg, 10 ml, etc.)
+    name = re.sub(r"\b\d+(\.\d+)?\s*(mg|mcg|g|ml|%)\b", "", name)
+
+    # remove punctuation
+    name = re.sub(r"[^a-z0-9\s]", " ", name)
+
+    # collapse whitespace
+    name = re.sub(r"\s+", " ", name).strip()
+
+    return name
+
+
+def extract_drug_tokens(text: str) -> list[str]:
+    """
+    Takes a string like:
+        'Abecma (Idecabtagene Vicleucel)'
+    and returns:
+        ['abecma', 'idecabtagene', 'vicleucel']
+    """
+    if not text:
+        return []
+
+    # Remove parentheses but keep their contents
+    cleaned = re.sub(r"[()]", "", text)
+
+    # Split on whitespace
+    tokens = cleaned.split()
+
+    # remove unwanted tokens like in and for
+    tokens = [token.lower() for token in tokens]
+    tokens = set(tokens) - set(
+        [
+            "and",
+            "for",
+            "in",
+            "tablets",
+            "tablet",
+            "injection",
+            "injections",
+            "pills",
+            "pill",
+            "sterile",
+            "powder",
+        ]
+    )
+
+    return list(tokens)
