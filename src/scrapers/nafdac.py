@@ -52,7 +52,7 @@ class NafDacScraper(BaseScraper):
 
     def _extract_product_name_from_text(self, tag: BeautifulSoup) -> str | None:
         """Given a body text extract the product name."""
-        #pattern = r"^(.+?)\s+is\s+(?:an|a)\s"
+        
         pattern = r"^(.+?)\s+is\s+(?:an\s|a\s|used\s)"
         # FIXME is used should be included 
         for p in tag.find_all("p"):
@@ -241,6 +241,14 @@ class NafDacScraper(BaseScraper):
                 manufacturer,
             )
 
+            more_info = ""
+
+            if parsed.get("batch_number"):
+                more_info += "Batch Number: " + ", ".join(parsed.get("batch_number"))
+            if parsed.get("expiry_date"):
+                more_info += " Expiry Date: " + ", ".join(parsed.get("expiry_date"))
+
+
             results.append(
                 DrugAlert(
                     record_id=record_id,
@@ -253,7 +261,7 @@ class NafDacScraper(BaseScraper):
                     reason=parsed.get("title"),
                     product_name=product_name,
                     scraped_at=datetime.now(timezone.utc),
-                    more_info=None
+                    more_info=more_info
                 )
             )
             print("=" * 20)
