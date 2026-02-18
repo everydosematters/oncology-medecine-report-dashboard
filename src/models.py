@@ -26,7 +26,7 @@ class DrugAlert(pyd.BaseModel):
 
     # Always set at scrape-time (required)
     scraped_at: datetime
-    product_name: Optional[list[str] | str] = None
+    product_name: str = None
 
     model_config = pyd.ConfigDict(
         extra="forbid",  # catch accidental fields like body_text if model doesn't include it

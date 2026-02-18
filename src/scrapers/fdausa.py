@@ -94,7 +94,7 @@ class FDAUSAScraper(BaseScraper):
                 continue
 
             record_id = self.make_record_id(
-                self.source_id, drug_name, record["report_date"]
+                self.source_id, drug_name, record["recall_number"]
             )
 
             results.append(

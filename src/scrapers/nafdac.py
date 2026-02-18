@@ -41,6 +41,14 @@ class NafDacScraper(BaseScraper):
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
+    def _get_nafdac_record_id(self, text: str) -> str | None:
+        """Get the id of the recall from NAFDAC website."""
+        
+        match = re.search(r"No\.\s*(\d{1,3}/\d{4})", text)
+        if match:
+            return match.group()
+        return None
+
     def _get_nci_name(self, text: str) -> bool:
         """Return True if the given text likely refers to an oncology product."""
 
@@ -229,7 +237,7 @@ class NafDacScraper(BaseScraper):
                 row.select_one(fields["company"]).get_text(" ", strip=True)
             )
 
-            record_id = self.make_record_id(self.source_id, drug_name, publish_date)
+            record_id = self.make_record_id(self.source_id, drug_name, parsed.get("nafdac_record_id"))
 
             more_info = ""
 
@@ -248,7 +256,7 @@ class NafDacScraper(BaseScraper):
                     publish_date=publish_date,
                     manufacturer=manufacturer,
                     reason=parsed.get("title"),
-                    product_name=product_name,
+                    product_name=drug_name,
                     scraped_at=datetime.now(timezone.utc),
                     more_info=more_info,
                 )
@@ -258,6 +266,8 @@ class NafDacScraper(BaseScraper):
     def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
 
         title = select_one_text(soup, "h1")
+
+        nafdac_record_id = self._get_nafdac_record_id(title)
 
         title = extract_title(title)
 
@@ -276,6 +286,7 @@ class NafDacScraper(BaseScraper):
             "brand_name": brand_name,
             "generic_name": generic_name,
             "source_country": source_country,
+            "nafdac_record_id": nafdac_record_id,
             **product_specs,
         }
 

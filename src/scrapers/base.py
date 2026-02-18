@@ -79,10 +79,10 @@ class BaseScraper(ABC):
         raise NotImplementedError
 
     @final
-    def make_record_id(self, source_id: str, drug_name: str, publish_date: str) -> str:
+    def make_record_id(self, source_id: str, drug_name: str, record_id: str) -> str:
         """Build a stable record identifier from heterogeneous parts."""
 
-        raw = "||".join([source_id, drug_name, publish_date])
+        raw = "||".join([source_id, drug_name, record_id])
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @final
