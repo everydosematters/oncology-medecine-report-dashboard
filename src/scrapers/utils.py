@@ -42,7 +42,6 @@ CANONICAL_MAP = {
 }
 
 
-
 def clean_text(s: Optional[str]) -> Optional[str]:
     if not s:
         return None
@@ -141,6 +140,7 @@ def extract_country_from_title(title: str) -> Optional[str]:
 
     return m.group(1).strip()
 
+
 def remove_trademarks(name) -> str:
 
     return re.sub(r"[®™©]", "", name)
@@ -155,7 +155,7 @@ def extract_brand_name_and_generic_name_from_title(
     m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title.strip())
     if not m:
         return None, None
-    
+
     return remove_trademarks(m.group(1).strip()), remove_trademarks(m.group(2).strip())
 
 
@@ -244,7 +244,6 @@ def normalize_drug_name(name: str) -> str:
     name = name.lower()
 
     name = re.sub(r"[®™©]", "", name)
-
 
     # remove dosage (e.g., 500mg, 10 ml, etc.)
     name = re.sub(r"\b\d+(\.\d+)?\s*(mg|mcg|g|ml|%)\b", "", name)

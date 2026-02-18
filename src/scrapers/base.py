@@ -24,7 +24,7 @@ class BaseScraper(ABC):
         args: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
         start_date: Optional[datetime] = None,
-        oncology_drugs_path: str = "data/nci_oncology_drugs.json"
+        oncology_drugs_path: str = "data/nci_oncology_drugs.json",
     ) -> None:
         """Initialize the scraper with a base URL and optional request args."""
 
