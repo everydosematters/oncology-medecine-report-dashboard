@@ -87,8 +87,6 @@ def test_parse_detail_page_extracts_title_body_date_and_tables(nafdac_scraper):
     """
     soup = BeautifulSoup(html, "html.parser")
     out, _ = nafdac_scraper._parse_detail_page(soup)
-    print(out)
-
     assert out["title"].startswith("Public Alert No. 031/2025")
     assert out["publish_date"] is not None
     assert "Some intro text." in out["body"]

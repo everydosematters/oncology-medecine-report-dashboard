@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
+from collections import defaultdict
 
 from bs4 import BeautifulSoup, Tag
 import re
@@ -48,6 +49,22 @@ class NafDacScraper(BaseScraper):
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
         # FIXME do a more specific filter some drugs cause oncology and are being trapped
+
+    def _extract_product_name_from_text(self, tag: BeautifulSoup) -> str | None:
+        """Given a body text extract the product name."""
+
+        pattern = r"^(.+?)\s+is\s+(?:an\s|a\s|used\s)"
+        # FIXME is used should be included
+        for p in tag.find_all("p"):
+            txt = p.get_text(" ", strip=True)
+            m = re.compile(pattern, re.IGNORECASE).search(txt)
+
+            if m and (m.regs[0][0] != 0 or m.regs[0][-1] > 50):
+                # parsed the wrong thing def
+                continue
+            if m:
+                return m.group(1).strip()
+        return None
 
     def _extract_product_specs_from_text(
         self, *soup: BeautifulSoup
@@ -130,11 +147,12 @@ class NafDacScraper(BaseScraper):
         """
         Extracts the product specification like batch number and name
         """
+        parsed_table = defaultdict(None)
         for table in soup[-1].find_all("table"):
-            parsed_table = self._parse_nafdac_table(table)
-            if parsed_table:
-                return parsed_table
-        return {}
+            table_specs = self._parse_nafdac_table(table)
+            if table_specs:
+                parsed_table.update(table_specs)
+        return parsed_table
 
     def _parse_listing_page(
         self, soup: BeautifulSoup, listing_url: str
@@ -191,14 +209,14 @@ class NafDacScraper(BaseScraper):
             )
 
             if not product_name:
-                print("no product name detected")
-                print(row)
-                continue
+                product_name = self._extract_product_name_from_text(
+                    detail_scraped["html"]
+                )
 
             query = get_first_name(product_name)
-            get_nci_name = self.get_nci_name(query)
+            drug_name = self.get_nci_name(query)
 
-            if not get_nci_name:
+            if not drug_name:
                 continue
 
             publish_date = parse_date(publish_date)
@@ -210,21 +228,15 @@ class NafDacScraper(BaseScraper):
             manufacturer = clean_text(
                 row.select_one(fields["company"]).get_text(" ", strip=True)
             )
-            alert_type = (
-                clean_text(
-                    row.select_one(fields["alert_type"]).get_text(" ", strip=True)
-                )
-                if fields.get("alert_type") and row.select_one(fields["alert_type"])
-                else None
-            )
 
-            record_id = self.make_record_id(
-                self.source_id,
-                detail_url,
-                publish_date,  # FIXME why use the title?
-                parsed.get("title"),
-                manufacturer,
-            )
+            record_id = self.make_record_id(self.source_id, drug_name, publish_date)
+
+            more_info = ""
+
+            if parsed.get("batch_number"):
+                more_info += "Batch Number: " + ", ".join(parsed.get("batch_number"))
+            if parsed.get("expiry_date"):
+                more_info += " Expiry Date: " + ", ".join(parsed.get("expiry_date"))
 
             results.append(
                 DrugAlert(
@@ -235,22 +247,12 @@ class NafDacScraper(BaseScraper):
                     source_url=detail_url,
                     publish_date=publish_date,
                     manufacturer=manufacturer,
-                    notes=parsed.get("title"),
-                    alert_type=alert_type,
+                    reason=parsed.get("title"),
                     product_name=product_name,
                     scraped_at=datetime.now(timezone.utc),
-                    brand_name=parsed.get("brand_name"),
-                    generic_name=parsed.get("generic_name"),
-                    batch_number=parsed.get("batch_number"),
-                    expiry_date=parse_date(parsed.get("expiry_date", [None])[0]),
-                    date_of_manufacture=parse_date(
-                        parsed.get("date_of_manufacture", [None])[0]
-                    ),
+                    more_info=more_info,
                 )
             )
-            print("=" * 20)
-            print(results)
-            print("=" * 20)
         return results
 
     def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
