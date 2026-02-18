@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List
+from collections import defaultdict
 
 from bs4 import BeautifulSoup, Tag
 import re
@@ -21,7 +22,7 @@ from .utils import (
     get_first_name,
     select_one_text,
     parse_date,
-    extract_country_from_title,
+    extract_country_from_title
 )
 
 
@@ -48,6 +49,22 @@ class NafDacScraper(BaseScraper):
         hay = (text or "").lower()
         return any(k.lower() in hay for k in keywords)
         # FIXME do a more specific filter some drugs cause oncology and are being trapped
+
+    def _extract_product_name_from_text(self, tag: BeautifulSoup) -> str | None:
+        """Given a body text extract the product name."""
+        #pattern = r"^(.+?)\s+is\s+(?:an|a)\s"
+        pattern = r"^(.+?)\s+is\s+(?:an\s|a\s|used\s)"
+        # FIXME is used should be included 
+        for p in tag.find_all("p"):
+            txt = p.get_text(" ", strip=True)
+            m = re.compile(pattern,  re.IGNORECASE).search(txt)
+
+            if m and (m.regs[0][0] != 0 or m.regs[0][-1]>50):
+                # parsed the wrong thing def
+                continue
+            if m:
+                return m.group(1).strip()
+        return None
 
     def _extract_product_specs_from_text(
         self, *soup: BeautifulSoup
@@ -130,11 +147,12 @@ class NafDacScraper(BaseScraper):
         """
         Extracts the product specification like batch number and name
         """
+        parsed_table = defaultdict(None)
         for table in soup[-1].find_all("table"):
-            parsed_table = self._parse_nafdac_table(table)
-            if parsed_table:
-                return parsed_table
-        return {}
+            table_specs = self._parse_nafdac_table(table)
+            if table_specs:
+                parsed_table.update(table_specs)
+        return parsed_table
 
     def _parse_listing_page(
         self, soup: BeautifulSoup, listing_url: str
@@ -191,9 +209,13 @@ class NafDacScraper(BaseScraper):
             )
 
             if not product_name:
-                print("no product name detected")
-                print(row)
-                continue
+                #
+                print("***"*10)
+                print("no product name detected, parsing manually")
+                product_name = self._extract_product_name_from_text(detail_scraped["html"])
+                print(product_name)
+                print(detail_url)
+                print("***"*10)
 
             query = get_first_name(product_name)
             product_name = self.get_nci_name(query)

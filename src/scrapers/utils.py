@@ -141,6 +141,10 @@ def extract_country_from_title(title: str) -> Optional[str]:
 
     return m.group(1).strip()
 
+def remove_trademarks(name) -> str:
+
+    return re.sub(r"[®™©]", "", name)
+
 
 def extract_brand_name_and_generic_name_from_title(
     title: str,
@@ -151,8 +155,8 @@ def extract_brand_name_and_generic_name_from_title(
     m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title.strip())
     if not m:
         return None, None
-
-    return m.group(1).strip(), m.group(2).strip()
+    
+    return remove_trademarks(m.group(1).strip()), remove_trademarks(m.group(2).strip())
 
 
 def table_to_grid(tbl: Tag) -> list[list[str]]:
@@ -226,9 +230,11 @@ def table_to_grid(tbl: Tag) -> list[list[str]]:
 
 
 def get_first_name(names: str | list[str]) -> str:
+    if not names:
+        return ""
     if isinstance(names, list):
         names = names[0]
-    return names.split(" ")[0]
+    return remove_trademarks(names.split(" ")[0])
 
 
 def normalize_drug_name(name: str) -> str:
@@ -236,6 +242,9 @@ def normalize_drug_name(name: str) -> str:
         return ""
 
     name = name.lower()
+
+    name = re.sub(r"[®™©]", "", name)
+
 
     # remove dosage (e.g., 500mg, 10 ml, etc.)
     name = re.sub(r"\b\d+(\.\d+)?\s*(mg|mcg|g|ml|%)\b", "", name)

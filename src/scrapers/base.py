@@ -98,6 +98,8 @@ class BaseScraper(ABC):
     def get_nci_name(self, drug_name: str, approved_drugs: list = []) -> Optional[str]:
         """Look up the NCI dictionary for the drug name."""
 
+        if not drug_name:
+            return None
         if not approved_drugs:
             approved_drugs = self.oncology_drugs
         if not approved_drugs:
