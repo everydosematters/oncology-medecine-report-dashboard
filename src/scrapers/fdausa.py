@@ -72,11 +72,13 @@ class FDAUSAScraper(BaseScraper):
         }
 
         resp = requests.get(self.cfg["api_endpoint"], params=params, timeout=30)
+        
         resp.raise_for_status()
         data = resp.json()
 
         # TODO handle pagination if results are many than the limit
         for record in data["results"]:
+            url = self.cfg["api_endpoint"] + "?search=recall_number:" + record.get("recall_number", "")
             description = record["product_description"]
             product_name = description.split(",")[0]
             query = product_name.split(" ")[0]
@@ -87,7 +89,7 @@ class FDAUSAScraper(BaseScraper):
             if not drug_name:
                 continue
 
-            record_id = self.make_record_id(description)
+            record_id = self.make_record_id(self.source_id, drug_name, record["report_date"])
 
             results.append(
                 DrugAlert(
@@ -95,7 +97,7 @@ class FDAUSAScraper(BaseScraper):
                     source_id=self.source_id,
                     source_org=self.source_org,
                     source_country=record["country"],
-                    source_url=self.cfg["base_url"],
+                    source_url=url,
                     publish_date=parse_date(record["report_date"]),
                     manufacturer=manufacturer,
                     distributor=distributor,

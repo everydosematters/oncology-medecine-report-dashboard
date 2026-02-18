@@ -218,9 +218,9 @@ class NafDacScraper(BaseScraper):
                 print("***"*10)
 
             query = get_first_name(product_name)
-            product_name = self.get_nci_name(query)
+            drug_name = self.get_nci_name(query)
 
-            if not product_name:
+            if not drug_name:
                 continue
 
             publish_date = parse_date(publish_date)
@@ -233,13 +233,7 @@ class NafDacScraper(BaseScraper):
                 row.select_one(fields["company"]).get_text(" ", strip=True)
             )
             
-            record_id = self.make_record_id(
-                self.source_id,
-                detail_url,
-                publish_date,  # FIXME why use the title?
-                parsed.get("title"),
-                manufacturer,
-            )
+            record_id = self.make_record_id(self.source_id, drug_name, publish_date)
 
             more_info = ""
 
