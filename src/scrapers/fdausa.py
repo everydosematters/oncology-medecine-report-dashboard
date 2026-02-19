@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import List
 import re
 import requests
+import time
 
 from src.models import DrugAlert
 
@@ -61,6 +62,48 @@ class FDAUSAScraper(BaseScraper):
         distributor_match = re.search(pattern, text, re.IGNORECASE)
         return distributor_match.group(1).strip() if distributor_match else None
 
+
+    def _fetch_all_openfda(self, endpoint: str, params: dict, *, page_size: int = 1000, pause_s: float = 0.1):
+        """Paginate openFDA results using skip/limit."""
+
+        page_size = min(page_size, 1000)  # openFDA max limit :contentReference[oaicite:1]{index=1}
+        skip = 0
+        out = []
+
+        while True:
+            page_params = dict(params)
+            page_params["limit"] = page_size
+            page_params["skip"] = skip
+
+            resp = requests.get(endpoint, params=page_params, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+
+            results = data.get("results", [])
+            if not results:
+                break
+
+            out.extend(results)
+
+            total = data.get("meta", {}).get("results", {}).get("total")
+            skip += page_size
+
+            # Stop once we have everything (when total is provided)
+            if total is not None and len(out) >= total:
+                break
+
+            # Be polite to the API (especially without an API key)
+            if pause_s:
+                time.sleep(pause_s)
+
+            # openFDA skip has a max of 25000 :contentReference[oaicite:2]{index=2}
+            if skip > 25000:
+                raise RuntimeError(
+                    "Reached openFDA skip limit (25000)."
+                )
+
+        return out
+
     def standardize(self) -> List[DrugAlert]:
         """Call FDA API endpoint to fetch recalls, return DrugAlerts."""
 
@@ -71,13 +114,9 @@ class FDAUSAScraper(BaseScraper):
             "limit": 1000,
         }
 
-        resp = requests.get(self.cfg["api_endpoint"], params=params, timeout=30)
+        data = self._fetch_all_openfda(self.cfg["api_endpoint"], params)
 
-        resp.raise_for_status()
-        data = resp.json()
-
-        # TODO handle pagination if results are many than the limit
-        for record in data["results"]:
+        for record in data:
             url = (
                 self.cfg["api_endpoint"]
                 + "?search=recall_number:"
