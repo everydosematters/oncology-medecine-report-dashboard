@@ -20,13 +20,13 @@ class DrugAlert(pyd.BaseModel):
     manufacturer: Optional[str] = None
     distributor: Optional[str] = None
 
-    publish_date: Optional[datetime] = None
+    publish_date: Optional[str] = None
     reason: Optional[str] = None
     more_info: Optional[str] = None
 
     # Always set at scrape-time (required)
-    scraped_at: datetime
-    product_name: Optional[list[str] | str] = None
+    scraped_at: str
+    product_name: str = None
 
     model_config = pyd.ConfigDict(
         extra="forbid",  # catch accidental fields like body_text if model doesn't include it

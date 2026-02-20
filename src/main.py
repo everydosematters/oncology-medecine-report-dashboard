@@ -6,36 +6,26 @@ from datetime import datetime
 
 import json
 import pandas as pd
+import sqlite3
 
 from src.scrapers.nafdac import NafDacScraper  # noqa: E402
 from src.scrapers.fdausa import FDAUSAScraper
+from database import create_table
 
 
 def main():
     """Run scrapers and export results as CSVs."""
 
-    # Resolve sources.json relative to this file so it works regardless of CWD
-    # FIXME move this inside the class instatiaiton
-    with open("scrapers/sources.json", "r") as f:
-        sources = json.load(f)
+    create_table()
 
+    start_date = datetime(2024, 1, 1)
     # Example: run FDA USA scraper from 2024-01-01 onwards
-    fdausa = FDAUSAScraper(sources["FDA_US"], datetime(2025, 1, 1))
-    # fdausa.fetch_oncology_drug_names()
-    fda_records = fdausa.standardize()
-
-    df = pd.DataFrame([record.model_dump() for record in fda_records])
-    df = df.applymap(lambda x: ",".join(x) if isinstance(x, list) else x)
-    df.to_csv("fda_records.csv", index=False)
+    fdausa = FDAUSAScraper(start_date)
+    fdausa.standardize(upload_to_db=True)
 
     # # Example: run NAFDAC scraper (commented out by default)
-    nafdac = NafDacScraper(sources["NAFDAC_NG"], datetime(2024, 1, 1))
-    nafdac_records = nafdac.standardize()
-
-    df = pd.DataFrame([record.model_dump() for record in nafdac_records])
-    df = df.applymap(lambda x: ",".join(x) if isinstance(x, list) else x)
-    df.to_csv("nafdac_records.csv", index=False)
-    print(f"Records: {len(df)} records")
+    nafdac = NafDacScraper(start_date)
+    nafdac.standardize(upload_to_db=True)
 
 
 if __name__ == "__main__":

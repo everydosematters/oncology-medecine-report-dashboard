@@ -171,7 +171,7 @@ seed/production/profiles_hub.*
 **/coverage
 
 # database
-**/*.db
+# **/*.db
 
 # csv files
 **/*.csv
