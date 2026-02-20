@@ -12,8 +12,9 @@ from src.models import DrugAlert
 from src.database import upsert_df
 
 from .base import BaseScraper
-from .utils import parse_date, read_json
+from .utils import parse_date
 import sqlite3
+from scrapers.config import FDA_US
 
 
 class FDAUSAScraper(BaseScraper):
@@ -23,11 +24,11 @@ class FDAUSAScraper(BaseScraper):
         """Initialize scraper with configuration and optional start date filter."""
         if start_date is not None and start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=timezone.utc)
-        
+
         super().__init__(
             start_date=start_date,
         )
-        self.cfg = read_json(self.source_path)["FDA_US"]
+        self.cfg = FDA_US
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
@@ -63,11 +64,19 @@ class FDAUSAScraper(BaseScraper):
         distributor_match = re.search(pattern, text, re.IGNORECASE)
         return distributor_match.group(1).strip() if distributor_match else None
 
-
-    def _fetch_all_openfda(self, endpoint: str, params: dict, *, page_size: int = 1000, pause_s: float = 0.1):
+    def _fetch_all_openfda(
+        self,
+        endpoint: str,
+        params: dict,
+        *,
+        page_size: int = 1000,
+        pause_s: float = 0.1,
+    ):
         """Paginate openFDA results using skip/limit."""
 
-        page_size = min(page_size, 1000)  # openFDA max limit :contentReference[oaicite:1]{index=1}
+        page_size = min(
+            page_size, 1000
+        )  # openFDA max limit :contentReference[oaicite:1]{index=1}
         skip = 0
         out = []
 
@@ -99,9 +108,7 @@ class FDAUSAScraper(BaseScraper):
 
             # openFDA skip has a max of 25000 :contentReference[oaicite:2]{index=2}
             if skip > 25000:
-                raise RuntimeError(
-                    "Reached openFDA skip limit (25000)."
-                )
+                raise RuntimeError("Reached openFDA skip limit (25000).")
 
         return out
 

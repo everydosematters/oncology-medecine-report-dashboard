@@ -3,6 +3,7 @@
 import sqlite3
 from src.models import DrugAlert
 
+
 def create_table():
     """Create a table in SQLite."""
 

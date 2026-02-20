@@ -5,8 +5,7 @@ from __future__ import annotations
 import json
 import re
 from datetime import datetime
-from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Optional
 from urllib.parse import urljoin
 
 from bs4 import BeautifulSoup, Tag
@@ -43,6 +42,8 @@ CANONICAL_MAP = {
 
 
 def clean_text(s: Optional[str]) -> Optional[str]:
+    """Clean text in a tag."""
+
     if not s:
         return None
     s = re.sub(r"\s+", " ", s).strip()
@@ -50,16 +51,14 @@ def clean_text(s: Optional[str]) -> Optional[str]:
 
 
 def cell_text(cell: Tag) -> str:
-    """
-    Joins all <p> or nested text inside a cell into one string.
-    """
+    """Joins all <p> or nested text inside a cell into one string."""
+
     return clean_text(cell.get_text(" ", strip=True))
 
 
 def normalize_key(label: str, return_none: bool = False) -> Optional[str]:
-    """
-    Normalize table/header labels into canonical keys used by the pipeline.
-    """
+    """Normalize table/header labels into canonical keys used by the pipeline."""
+
     if not label:
         return None
 
@@ -83,6 +82,8 @@ def normalize_key(label: str, return_none: bool = False) -> Optional[str]:
 
 
 def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
+    """Wrapper for BeautifulSoup's select one."""
+
     if not selector:
         return None
     el = soup.select_one(selector)
@@ -92,6 +93,8 @@ def select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
 
 
 def absolutize(base_url: str, href: str) -> str:
+    """Join two urls."""
+
     return urljoin(base_url, href)
 
 
@@ -126,40 +129,15 @@ def parse_date(value: Optional[str]) -> Optional[datetime]:
         return None
 
 
-def extract_title(title: str) -> str:
-    return re.search(r"[-–]\s*(.+)", title).group(1)
-
-
-def extract_country_from_title(title: str) -> Optional[str]:
-    if not title:
-        return None
-
-    m = re.search(r"\b(?:in)\s+([A-Z][A-Za-z\s]+)$", title.strip())
-    if not m:
-        return None
-
-    return m.group(1).strip()
-
-
 def remove_trademarks(name) -> str:
+    """Remove unwanted trademarks."""
 
     return re.sub(r"[®™©]", "", name)
 
 
-def extract_brand_name_and_generic_name_from_title(
-    title: str,
-) -> Tuple[Optional[str], Optional[str]]:
-    if not title:
-        return None, None
-
-    m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title.strip())
-    if not m:
-        return None, None
-
-    return remove_trademarks(m.group(1).strip()), remove_trademarks(m.group(2).strip())
-
-
 def table_to_grid(tbl: Tag) -> list[list[str]]:
+    """Return contents of a table."""
+
     # Get all rows
     trs = tbl.select("tr")
     if not trs:
@@ -230,6 +208,8 @@ def table_to_grid(tbl: Tag) -> list[list[str]]:
 
 
 def get_first_name(names: str | list[str]) -> str:
+    """Retunr the first of a drug."""
+
     if not names:
         return ""
     if isinstance(names, list):
@@ -238,6 +218,8 @@ def get_first_name(names: str | list[str]) -> str:
 
 
 def normalize_drug_name(name: str) -> str:
+    """Normalize drug name according to NCI."""
+
     if not name:
         return ""
 
@@ -258,12 +240,8 @@ def normalize_drug_name(name: str) -> str:
 
 
 def extract_drug_tokens(text: str) -> list[str]:
-    """
-    Takes a string like:
-        'Abecma (Idecabtagene Vicleucel)'
-    and returns:
-        ['abecma', 'idecabtagene', 'vicleucel']
-    """
+    """Extract drug names from a text."""
+
     if not text:
         return []
 
@@ -288,6 +266,9 @@ def extract_drug_tokens(text: str) -> list[str]:
             "pill",
             "sterile",
             "powder",
+            "implant",
+            "sodium",
+            "calcium",
         ]
     )
 
@@ -295,6 +276,7 @@ def extract_drug_tokens(text: str) -> list[str]:
 
 
 def read_json(file_path: str) -> dict:
+    """Read a json file."""
 
     with open(file_path, "r") as file:
         data = json.load(file)

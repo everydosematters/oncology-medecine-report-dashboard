@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional, Tuple
 from collections import defaultdict
 
 from bs4 import BeautifulSoup, Tag
@@ -12,20 +12,18 @@ import sqlite3
 
 from src.models import DrugAlert
 from src.database import upsert_df
+from scrapers.config import NAFDAC_NG
 
 from .base import BaseScraper
 from .utils import (
     absolutize,
     clean_text,
-    extract_title,
-    extract_brand_name_and_generic_name_from_title,
     normalize_key,
     table_to_grid,
     get_first_name,
     select_one_text,
     parse_date,
-    extract_country_from_title,
-    read_json
+    remove_trademarks,
 )
 
 
@@ -35,21 +33,48 @@ class NafDacScraper(BaseScraper):
     def __init__(self, start_date: datetime = None) -> None:
         """Initialize scraper with configuration and optional start date filter."""
 
-        
         super().__init__(
             start_date=start_date,
         )
-        self.cfg = read_json(self.source_path)["NAFDAC_NG"]
+        self.cfg = NAFDAC_NG
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
-    def _get_nafdac_record_id(self, text: str) -> str | None:
+    def _get_nafdac_record_id(self, text: str) -> Optional[str]:
         """Get the id of the recall from NAFDAC website."""
-        
+
         match = re.search(r"No\.\s*(\d{1,3}/\d{4})", text)
         if match:
             return match.group()
         return None
+
+    def _extract_country_from_title(self, title: str) -> Optional[str]:
+        """Extract country from title."""
+
+        if not title:
+            return None
+
+        m = re.search(r"\b(?:in)\s+([A-Z][A-Za-z\s]+)$", title.strip())
+        if not m:
+            return None
+
+        return m.group(1).strip()
+
+    def _extract_brand_name_and_generic_name_from_title(
+        self, title: str
+    ) -> Tuple[Optional[str], Optional[str]]:
+        """Extract brand name and generic name from title."""
+
+        if not title:
+            return None, None
+
+        m = re.search(r"([A-Z][A-Za-z0-9\-]*)\s*\(([^)]+)\)", title.strip())
+        if not m:
+            return None, None
+
+        return remove_trademarks(m.group(1).strip()), remove_trademarks(
+            m.group(2).strip()
+        )
 
     def _get_nci_name(self, text: str) -> bool:
         """Return True if the given text likely refers to an oncology product."""
@@ -60,11 +85,10 @@ class NafDacScraper(BaseScraper):
         return any(k.lower() in hay for k in keywords)
         # FIXME do a more specific filter some drugs cause oncology and are being trapped
 
-    def _extract_product_name_from_text(self, tag: BeautifulSoup) -> str | None:
+    def _extract_product_name_from_text(self, tag: BeautifulSoup) -> Optional[str]:
         """Given a body text extract the product name."""
 
         pattern = r"^(.+?)\s+is\s+(?:an\s|a\s|used\s)"
-        # FIXME is used should be included
         for p in tag.find_all("p"):
             txt = p.get_text(" ", strip=True)
             m = re.compile(pattern, re.IGNORECASE).search(txt)
@@ -154,9 +178,8 @@ class NafDacScraper(BaseScraper):
         self,
         *soup: BeautifulSoup,
     ) -> dict:
-        """
-        Extracts the product specification like batch number and name
-        """
+        """Extracts the product specification like batch number and name."""
+
         parsed_table = defaultdict(None)
         for table in soup[-1].find_all("table"):
             table_specs = self._parse_nafdac_table(table)
@@ -167,12 +190,8 @@ class NafDacScraper(BaseScraper):
     def _parse_listing_page(
         self, soup: BeautifulSoup, listing_url: str
     ) -> List[DrugAlert]:
-        """
-        Reads table rows from tbody and extracts all necessary info
-          - publish_date (col 1)
-          - title + detail_url (col 2)
-          - alert_type/category/company (optional, from config mapping)
-        """
+        """Reads table rows from tbody and extracts all necessary info."""
+
         listing_cfg = self.cfg.get("listing") or {}
         item_sel = listing_cfg.get("item_selector")
         link_sel = listing_cfg.get("link_selector")
@@ -239,7 +258,9 @@ class NafDacScraper(BaseScraper):
                 row.select_one(fields["company"]).get_text(" ", strip=True)
             )
 
-            record_id = self.make_record_id(self.source_id, drug_name, parsed.get("nafdac_record_id"))
+            record_id = self.make_record_id(
+                self.source_id, drug_name, parsed.get("nafdac_record_id")
+            )
 
             more_info = ""
 
@@ -266,16 +287,19 @@ class NafDacScraper(BaseScraper):
         return results
 
     def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
+        """Extract the contents of detail url."""
 
         title = select_one_text(soup, "h1")
 
         nafdac_record_id = self._get_nafdac_record_id(title)
 
-        title = extract_title(title)
+        title = re.search(r"[-–]\s*(.+)", title).group(1)
 
-        source_country = extract_country_from_title(title)
+        source_country = self._extract_country_from_title(title)
 
-        brand_name, generic_name = extract_brand_name_and_generic_name_from_title(title)
+        brand_name, generic_name = self._extract_brand_name_and_generic_name_from_title(
+            title
+        )
 
         if soup.find("table"):
             product_specs = self._extract_product_specs(soup)
@@ -293,6 +317,8 @@ class NafDacScraper(BaseScraper):
         }
 
     def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
+        """Standardize the extracted content."""
+
         listing_url = self.cfg[
             "base_url"
         ]  # Base is sufficient gives all the listings in this case
