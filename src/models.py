@@ -20,12 +20,12 @@ class DrugAlert(pyd.BaseModel):
     manufacturer: Optional[str] = None
     distributor: Optional[str] = None
 
-    publish_date: Optional[datetime] = None
+    publish_date: Optional[str] = None
     reason: Optional[str] = None
     more_info: Optional[str] = None
 
     # Always set at scrape-time (required)
-    scraped_at: datetime
+    scraped_at: str
     product_name: str = None
 
     model_config = pyd.ConfigDict(

@@ -8,8 +8,10 @@ from collections import defaultdict
 
 from bs4 import BeautifulSoup, Tag
 import re
+import sqlite3
 
 from src.models import DrugAlert
+from src.database import upsert_df
 
 from .base import BaseScraper
 from .utils import (
@@ -23,21 +25,21 @@ from .utils import (
     select_one_text,
     parse_date,
     extract_country_from_title,
+    read_json
 )
 
 
 class NafDacScraper(BaseScraper):
     """Scraper for NAFDAC Nigeria recall and alert listings."""
 
-    def __init__(self, config: dict, start_date: datetime = None) -> None:
+    def __init__(self, start_date: datetime = None) -> None:
         """Initialize scraper with configuration and optional start date filter."""
 
-        self.cfg = config
+        
         super().__init__(
-            self.cfg["base_url"],
-            args=self.cfg.get("request") or {},
             start_date=start_date,
         )
+        self.cfg = read_json(self.source_path)["NAFDAC_NG"]
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
@@ -253,11 +255,11 @@ class NafDacScraper(BaseScraper):
                     source_org=self.source_org,
                     source_country=parsed.get("source_country") or "Nigeria",
                     source_url=detail_url,
-                    publish_date=publish_date,
+                    publish_date=publish_date.isoformat(),
                     manufacturer=manufacturer,
                     reason=parsed.get("title"),
                     product_name=drug_name,
-                    scraped_at=datetime.now(timezone.utc),
+                    scraped_at=datetime.now(timezone.utc).isoformat(),
                     more_info=more_info,
                 )
             )
@@ -290,15 +292,18 @@ class NafDacScraper(BaseScraper):
             **product_specs,
         }
 
-    def standardize(self) -> List[DrugAlert]:
+    def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
         listing_url = self.cfg[
             "base_url"
         ]  # Base is sufficient gives all the listings in this case
 
         listing_scraped = self.scrape(listing_url)
-        records = self._parse_listing_page(
+        results = self._parse_listing_page(
             soup=listing_scraped["html"],
             listing_url=listing_scraped.get("final_url") or listing_url,
         )
 
-        return records
+        if upload_to_db:
+            with sqlite3.connect(self.db_path) as conn:
+                upsert_df(conn, results)
+        return results

@@ -1,13 +1,12 @@
 """Database connection utilities."""
 
 import sqlite3
-import pandas as pd
-import json
+from src.models import DrugAlert
 
 def create_table():
     """Create a table in SQLite."""
 
-    with sqlite3.connect("recalls.db") as conn:
+    with sqlite3.connect("data/recalls.db") as conn:
         cursor = conn.cursor()
 
         query = """
@@ -29,18 +28,11 @@ def create_table():
         cursor.execute(query)
 
 
-def upsert_df(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
+def upsert_df(conn: sqlite3.Connection, data: list[DrugAlert]) -> None:
     """Upsert to database."""
 
-    # Convert datetime → ISO string
-    df["publish_date"] = df["publish_date"].apply(
-        lambda x: x.isoformat()
-    )
-    df["scraped_at"] = df["scraped_at"].apply(
-        lambda x: x.isoformat()
-    )
-
-    cols = list(df.columns)
+    data = [alert.model_dump() for alert in data]
+    cols = list(data[0].keys())
 
     placeholders = ", ".join(["?"] * len(cols))
 
@@ -72,4 +64,4 @@ def upsert_df(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
     """
 
     cur = conn.cursor()
-    cur.executemany(sql, df[cols].itertuples(index=False, name=None))
+    cur.executemany(sql, [tuple(row.get(c) for c in cols) for row in data])

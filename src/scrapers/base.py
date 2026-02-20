@@ -2,7 +2,7 @@
 
 import hashlib
 from abc import ABC, abstractmethod
-from datetime import date, datetime
+from datetime import datetime
 from typing import Any, Dict, List, Optional, final
 
 
@@ -19,11 +19,13 @@ class BaseScraper(ABC):
 
     def __init__(
         self,
-        url: str,
+        url: Optional[str] = None,
         *,
         args: Optional[Dict[str, Any]] = None,
         timeout: int = 30,
         start_date: Optional[datetime] = None,
+        db_bath: str = "data/recalls.db",
+        source_path: str = "scrapers/sources.json",
         oncology_drugs_path: str = "data/nci_oncology_drugs.json",
     ) -> None:
         """Initialize the scraper with a base URL and optional request args."""
@@ -45,6 +47,8 @@ class BaseScraper(ABC):
         )
         self.oncology_drugs_path = oncology_drugs_path
         self.oncology_drugs = read_json(self.oncology_drugs_path)
+        self.db_path = db_bath
+        self.source_path = source_path
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
         """Fetch a URL and return minimal response metadata plus parsed HTML."""
@@ -73,7 +77,7 @@ class BaseScraper(ABC):
         return data
 
     @abstractmethod
-    def standardize(self) -> List[DrugAlert]:
+    def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
         """Standardize the scraper's data into a list of DrugAlert objects."""
 
         raise NotImplementedError

@@ -9,24 +9,25 @@ import requests
 import time
 
 from src.models import DrugAlert
+from src.database import upsert_df
 
 from .base import BaseScraper
-from .utils import parse_date
+from .utils import parse_date, read_json
+import sqlite3
 
 
 class FDAUSAScraper(BaseScraper):
     """Scraper for the US FDA recalls/alerts DataTables listing."""
 
-    def __init__(self, config: dict, start_date: datetime = None) -> None:
+    def __init__(self, start_date: datetime = None) -> None:
         """Initialize scraper with configuration and optional start date filter."""
         if start_date is not None and start_date.tzinfo is None:
             start_date = start_date.replace(tzinfo=timezone.utc)
-        self.cfg = config
+        
         super().__init__(
-            self.cfg["base_url"],
-            args=self.cfg.get("request") or {},
             start_date=start_date,
         )
+        self.cfg = read_json(self.source_path)["FDA_US"]
         self.source_id = self.cfg["source_id"]
         self.source_org = self.cfg["source_org"]
 
@@ -104,7 +105,7 @@ class FDAUSAScraper(BaseScraper):
 
         return out
 
-    def standardize(self) -> List[DrugAlert]:
+    def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
         """Call FDA API endpoint to fetch recalls, return DrugAlerts."""
 
         results = []
@@ -143,14 +144,17 @@ class FDAUSAScraper(BaseScraper):
                     source_org=self.source_org,
                     source_country=record["country"],
                     source_url=url,
-                    publish_date=parse_date(record["report_date"]),
+                    publish_date=parse_date(record["report_date"]).isoformat(),
                     manufacturer=manufacturer,
                     distributor=distributor,
                     reason=record["reason_for_recall"],
                     more_info=description + " " + record["code_info"],
                     product_name=drug_name,
-                    scraped_at=datetime.now(timezone.utc),
+                    scraped_at=datetime.now(timezone.utc).isoformat(),
                 )
             )
 
+        if upload_to_db:
+            with sqlite3.connect(self.db_path) as conn:
+                upsert_df(conn, results)
         return results
