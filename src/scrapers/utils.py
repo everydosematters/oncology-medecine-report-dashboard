@@ -269,6 +269,7 @@ def extract_drug_tokens(text: str) -> list[str]:
             "implant",
             "sodium",
             "calcium",
+            "talc",
         ]
     )
 

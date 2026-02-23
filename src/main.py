@@ -19,13 +19,11 @@ def main():
     start_date = datetime(2024, 1, 1)
 
     healthcanada = HealthCanadaScraper(start_date)
-    records = healthcanada.standardize()
-    print(records)
-   
+    healthcanada.standardize(upload_to_db=True)
+
     fdausa = FDAUSAScraper(start_date)
     fdausa.standardize(upload_to_db=True)
 
-   
     nafdac = NafDacScraper(start_date)
     nafdac.standardize(upload_to_db=True)
 

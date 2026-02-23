@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from typing import List
 from typing import Optional
 import requests
+import pandas as pd
 
 from src.models import DrugAlert
 from src.database import upsert_df
@@ -48,30 +49,16 @@ class HealthCanadaScraper(BaseScraper):
         return (s or "").strip().lower()
 
     def _is_health_product_recall(self, rec: dict) -> bool:
-        """
-        Filter to health-product/drug-type recalls.
-        The open dataset includes many categories (food, vehicles, consumer products).
-        We keep this flexible because field names can vary.
-        """
-        category = self._norm(rec.get("Category") or rec.get("category"))
-        subcategory = self._norm(rec.get("Subcategory") or rec.get("subcategory"))
-        communication_type = self._norm(
-            rec.get("Type of communication")
-            or rec.get("type_of_communication")
-            or rec.get("Type")
-            or rec.get("type")
-        )
-        source = self._norm(rec.get("Source of recall") or rec.get("source_of_recall") or rec.get("Source"))
+        """Check if category is for drugs."""
 
-        # Common signals for Health Canada health/drug-related records
+        category = self._norm(rec.get("Category") or rec.get("category"))
+
         healthish = (
             "health" in category
-            or "health product" in category
-            or "drug" in communication_type
-            or "medical device" in communication_type
-            or "natural health" in subcategory
-            or "pharmaceutical" in subcategory
-            or source == "health canada"
+            or "drug" in category
+            or "biologic" in category
+            or "pharamaceutical" in category
+            or "vaccine" in category
         )
 
         return healthish
@@ -83,18 +70,8 @@ class HealthCanadaScraper(BaseScraper):
           - publish_dt (datetime|None) for filtering
         """
         # Try likely keys from the feed
-        date_str = (
-            rec.get("Starting date")
-            or rec.get("starting_date")
-            or rec.get("Recall date")
-            or rec.get("recall_date")
-            or rec.get("Posting date")
-            or rec.get("posting_date")
-            or rec.get("Last updated")
-            or rec.get("last_updated")
-            or rec.get("Date")
-            or rec.get("date")
-        )
+        date_str = rec.get("Last updated")
+
         if not date_str:
             return None, None
 
@@ -106,9 +83,17 @@ class HealthCanadaScraper(BaseScraper):
 
     def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
         """Fetch feed, filter, map to DrugAlert list."""
-        
+
         results: list[DrugAlert] = []
         data = self._fetch_feed()
+
+        # df = pd.DataFrame(data)
+        # df = df[df["Category"]=="Health products"]
+        # df["Last updated"] = pd.to_datetime(df["Last updated"], format="%Y-%m-%d", utc=True)
+        # if self.start_date:
+        #     df = df[df["Last updated"] > self.start_date]
+        # records = df.to_dict("records")
+        # # FIXME turn this into a dictionary to loop through
 
         for rec in data:
             if not self._is_health_product_recall(rec):
@@ -119,9 +104,10 @@ class HealthCanadaScraper(BaseScraper):
                 continue
 
             # Title / product name clues
-            title = (rec.get("Title") or rec.get("title") or "").strip()
-            product = (rec.get("Product") or rec.get("product") or "").strip()
-            raw_name = title or product
+            title = (rec.get("Title") or "").strip()
+            product = (rec.get("Product") or "").strip()
+
+            raw_name = product or title
             if not raw_name:
                 continue
 
@@ -132,67 +118,23 @@ class HealthCanadaScraper(BaseScraper):
                 continue
 
             # URL fields in dataset commonly look like a full detail-page URL
-            source_url = (
-                rec.get("URL")
-                or rec.get("Url")
-                or rec.get("url")
-                or rec.get("Link")
-                or rec.get("link")
-                or rec.get("Recall URL")
-                or rec.get("recall_url")
-            )
+            source_url = rec.get("URL")
 
-            # Manufacturer / distributor fields vary; keep best-effort
-            manufacturer = (
-                rec.get("Manufacturer")
-                or rec.get("manufacturer")
-                or rec.get("Company")
-                or rec.get("company")
-                or rec.get("Companies")
-                or rec.get("companies")
-            )
-            distributor = rec.get("Distributor") or rec.get("distributor")
-
-            reason = (
-                rec.get("Reason")
-                or rec.get("reason")
-                or rec.get("Issue")
-                or rec.get("issue")
-                or rec.get("Issue category")
-                or rec.get("issue_category")
-            )
+            reason = rec.get("Issue")
 
             # Build more_info from a few common fields (best-effort)
             more_info_parts = []
+
             for k in (
-                "Summary",
-                "summary",
-                "Details",
-                "details",
-                "What you should do",
-                "what_you_should_do",
-                "Affected products",
-                "affected_products",
-                "Lot or serial number",
-                "lot_or_serial_number",
-                "DIN, NPN, DIN-HIM",
-                "din_npn_din_him",
+                "Issue",
+                "Title",
             ):
                 v = rec.get(k)
                 if isinstance(v, str) and v.strip():
                     more_info_parts.append(v.strip())
-            more_info = " ".join(more_info_parts) if more_info_parts else None
+            more_info = ". ".join(more_info_parts) if more_info_parts else None
 
-            # Use something stable as an id seed (identification number if present)
-            ident = (
-                rec.get("Identification number")
-                or rec.get("identification_number")
-                or rec.get("ID")
-                or rec.get("id")
-                or (source_url or raw_name)
-            )
-
-            record_id = self.make_record_id(self.source_id, drug_name, str(ident))
+            record_id = self.make_record_id(self.source_id, drug_name, rec.get("NID"))
 
             results.append(
                 DrugAlert(
@@ -202,8 +144,8 @@ class HealthCanadaScraper(BaseScraper):
                     source_country=self.cfg.get("source_country", "Canada"),
                     source_url=source_url,
                     publish_date=publish_date_iso,
-                    manufacturer=manufacturer,
-                    distributor=distributor,
+                    manufacturer=None,
+                    distributor=None,
                     reason=reason,
                     more_info=more_info,
                     product_name=drug_name,
