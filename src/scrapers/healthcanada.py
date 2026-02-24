@@ -6,7 +6,6 @@ from datetime import datetime, timezone
 from typing import List
 from typing import Optional
 import requests
-import pandas as pd
 
 from src.models import DrugAlert
 from src.database import upsert_df
@@ -30,11 +29,8 @@ class HealthCanadaScraper(BaseScraper):
         self.source_org = self.cfg["source_org"]
 
     def _fetch_feed(self) -> list[dict]:
-        """
-        Fetch the full JSON feed.
-        The response is expected to be a JSON array (list of records) OR
-        an object containing a list under a known key (we handle both defensively).
-        """
+        """Fetch the full JSON feed."""
+
         resp = requests.get(self.cfg["api_endpoint"], timeout=60)
         resp.raise_for_status()
         data = resp.json()
@@ -64,11 +60,8 @@ class HealthCanadaScraper(BaseScraper):
         return healthish
 
     def _extract_dates(self, rec: dict) -> tuple[Optional[str], Optional[datetime]]:
-        """
-        Returns:
-          - publish_date_iso (str|None)
-          - publish_dt (datetime|None) for filtering
-        """
+        """Extract dates.  - publish_dt (datetime|None) for filtering"""
+
         # Try likely keys from the feed
         date_str = rec.get("Last updated")
 
@@ -86,14 +79,6 @@ class HealthCanadaScraper(BaseScraper):
 
         results: list[DrugAlert] = []
         data = self._fetch_feed()
-
-        # df = pd.DataFrame(data)
-        # df = df[df["Category"]=="Health products"]
-        # df["Last updated"] = pd.to_datetime(df["Last updated"], format="%Y-%m-%d", utc=True)
-        # if self.start_date:
-        #     df = df[df["Last updated"] > self.start_date]
-        # records = df.to_dict("records")
-        # # FIXME turn this into a dictionary to loop through
 
         for rec in data:
             if not self._is_health_product_recall(rec):
