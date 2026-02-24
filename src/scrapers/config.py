@@ -6,6 +6,14 @@ FDA_US = {
     "api_endpoint": "https://api.fda.gov/drug/enforcement.json",
 }
 
+HEALTH_CANADA = {
+    "source_id": "HEALTH_CANADA",
+    "source_country": "Canada",
+    "source_org": "Health Canada",
+    "base_url": "https://recalls-rappels.canada.ca/en",
+    "api_endpoint": "https://recalls-rappels.canada.ca/sites/default/files/opendata-donneesouvertes/HCRSAMOpenData.json",
+}
+
 NAFDAC_NG = {
     "source_id": "NAFDAC_NG",
     "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
