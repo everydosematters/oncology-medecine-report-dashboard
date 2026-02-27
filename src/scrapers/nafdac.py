@@ -76,15 +76,6 @@ class NafDacScraper(BaseScraper):
             m.group(2).strip()
         )
 
-    def _get_nci_name(self, text: str) -> bool:
-        """Return True if the given text likely refers to an oncology product."""
-
-        filters = self.cfg.get("filters") or {}
-        keywords = filters.get("oncology_keywords") or ["oncology", "oncology"]
-        hay = (text or "").lower()
-        return any(k.lower() in hay for k in keywords)
-        # FIXME do a more specific filter some drugs cause oncology and are being trapped
-
     def _extract_product_name_from_text(self, tag: BeautifulSoup) -> Optional[str]:
         """Given a body text extract the product name."""
 
