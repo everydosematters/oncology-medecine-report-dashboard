@@ -84,6 +84,7 @@ def extract_drug_tokens(text: str) -> list[str]:
     tokens = set(tokens) - set(
         [
             "and",
+            "a",
             "acid",
             "for",
             "in",
