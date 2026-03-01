@@ -15,7 +15,6 @@ from src.models import DrugAlert
 from src.database import upsert_df
 
 from .base import BaseScraper
-from .utils import parse_date
 from .config import FDA_GH
 
 
@@ -58,7 +57,11 @@ def _find_nonce_candidates(html: str) -> List[str]:
             candidates.add(m.group(1))
 
     # Contextual extraction near relevant words
-    for m in re.finditer(r"(?:wdt|datatable|admin-ajax|ajax|nonce|security).{0,500}", html, flags=re.I | re.S):
+    for m in re.finditer(
+        r"(?:wdt|datatable|admin-ajax|ajax|nonce|security).{0,500}",
+        html,
+        flags=re.I | re.S,
+    ):
         chunk = m.group(0)
         for tok in re.findall(r"\b[a-f0-9]{8,32}\b", chunk, flags=re.I):
             candidates.add(tok)
@@ -109,7 +112,9 @@ def _looks_like_json_payload(text: str) -> bool:
     return t.startswith("{") and t.endswith("}")
 
 
-def _extract_link_and_text(cell_html: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
+def _extract_link_and_text(
+    cell_html: Optional[str],
+) -> Tuple[Optional[str], Optional[str]]:
     if not cell_html or not isinstance(cell_html, str):
         return None, None
     soup = BeautifulSoup(cell_html, "html.parser")
@@ -140,7 +145,11 @@ class GhanaWpDataTablesClient:
         self._wdt_nonce: Optional[str] = None
 
     def prime(self) -> None:
-        r = self.session.get(self.listing_url, headers={"User-Agent": FDA_GH["headers"]["User-Agent"]}, timeout=60)
+        r = self.session.get(
+            self.listing_url,
+            headers={"User-Agent": FDA_GH["headers"]["User-Agent"]},
+            timeout=60,
+        )
         r.raise_for_status()
         self._listing_html = r.text
         self._ncols = _detect_column_count_from_html(r.text)
@@ -158,7 +167,9 @@ class GhanaWpDataTablesClient:
 
         candidates = _find_nonce_candidates(self._listing_html)
         if not candidates:
-            raise ValueError("No nonce candidates found in listing HTML; cannot call wpDataTables AJAX.")
+            raise ValueError(
+                "No nonce candidates found in listing HTML; cannot call wpDataTables AJAX."
+            )
 
         # Probe: request first page with each candidate
         for cand in candidates:
@@ -286,7 +297,9 @@ class FDAGhanaScraper(BaseScraper):
         soup = BeautifulSoup(html, "html.parser")
 
         # Find label "Reason for Recall:" then grab nearby text
-        for tag in soup.find_all(["strong", "b", "h1", "h2", "h3", "h4", "h5", "p", "div"]):
+        for tag in soup.find_all(
+            ["strong", "b", "h1", "h2", "h3", "h4", "h5", "p", "div"]
+        ):
             txt = tag.get_text(" ", strip=True).lower()
             if txt == "reason for recall:":
                 # pull next meaningful text block
@@ -316,26 +329,32 @@ class FDAGhanaScraper(BaseScraper):
         row_id = str(row[0] or "").strip()
         recall_date_raw = str(row[5] or "").strip()
         product_cell = row[6]  # HTML anchor
-        product_type = (str(row[7]).strip() if row[7] is not None else None)
+        product_type = str(row[7]).strip() if row[7] is not None else None
 
-        manufacturer = (str(row[8]).strip() if row[8] is not None else None)
-        recalling_firm = (str(row[9]).strip() if row[9] is not None else None)
-        batches = (str(row[10]).strip() if row[10] is not None else None)
-        mfg_date_raw = (str(row[11]).strip() if row[11] is not None else None)
-        exp_date_raw = (str(row[12]).strip() if row[12] is not None else None)
+        manufacturer = str(row[8]).strip() if row[8] is not None else None
+        recalling_firm = str(row[9]).strip() if row[9] is not None else None
+        batches = str(row[10]).strip() if row[10] is not None else None
+        mfg_date_raw = str(row[11]).strip() if row[11] is not None else None
+        exp_date_raw = str(row[12]).strip() if row[12] is not None else None
 
         # Filter: keep only Drug rows when product_type is present
         # (PDF rows often have None type; keep them if you want broader coverage)
         if product_type is not None and product_type.lower() != "drug":
             return None
 
-        source_url, raw_product_name = _extract_link_and_text(product_cell if isinstance(product_cell, str) else None)
+        source_url, raw_product_name = _extract_link_and_text(
+            product_cell if isinstance(product_cell, str) else None
+        )
         if not raw_product_name:
             return None
 
         # Dates
-        publish_dt = datetime.strptime(recall_date_raw, "%d/%m/%Y").replace(tzinfo=timezone.utc) if recall_date_raw else None
-       
+        publish_dt = (
+            datetime.strptime(recall_date_raw, "%d/%m/%Y").replace(tzinfo=timezone.utc)
+            if recall_date_raw
+            else None
+        )
+
         if self.start_date and publish_dt and publish_dt < self.start_date:
             return None
 
@@ -357,7 +376,7 @@ class FDAGhanaScraper(BaseScraper):
 
         # more_info: pack useful structured fields even when reason is missing (PDFs)
         more_info_parts: List[str] = []
-        
+
         created_at = str(row[2] or "").strip()
         updated_at = str(row[4] or "").strip()
 
@@ -402,7 +421,6 @@ class FDAGhanaScraper(BaseScraper):
         )
 
         rows = client.fetch_all_rows(page_size=200)
-
 
         alerts: List[DrugAlert] = []
         for row in rows:

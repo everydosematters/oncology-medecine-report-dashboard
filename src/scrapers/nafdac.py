@@ -43,7 +43,8 @@ class NafDacScraper(BaseScraper):
     def _get_nafdac_record_id(self, text: str) -> Optional[str]:
         """Get the id of the recall from NAFDAC website."""
 
-        match = re.search(r"No\.\s*(\d{1,3}/\d{4})", text)
+        pattern = r"(?:No\.\s*)?(\d{1,3}[A-Z]?/\d{4})"
+        match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return match.group()
         return None
@@ -280,11 +281,13 @@ class NafDacScraper(BaseScraper):
     def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
         """Extract the contents of detail url."""
 
-        title = select_one_text(soup, "h1")
+        raw_title = select_one_text(soup, "h1")
 
-        nafdac_record_id = self._get_nafdac_record_id(title)
+        nafdac_record_id = self._get_nafdac_record_id(raw_title)
 
-        title = re.search(r"[-–]\s*(.+)", title).group(1)
+        title = re.search(r"[-–]\s*(.+)", raw_title).group(1)
+
+        title = title if title else raw_title
 
         source_country = self._extract_country_from_title(title)
 
