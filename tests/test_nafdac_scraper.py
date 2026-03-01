@@ -4,6 +4,52 @@ import pytest
 from bs4 import BeautifulSoup
 
 
+# --- NAFDAC-specific helpers (moved from utils) ---
+
+
+def test_nafdac_clean_text(nafdac_mod):
+    assert nafdac_mod._clean_text(None) is None
+    assert nafdac_mod._clean_text("  hello   world  ") == "hello world"
+
+
+def test_nafdac_normalize_key(nafdac_mod):
+    nk = nafdac_mod._normalize_key
+    assert nk("Batch Number") == "batch_number"
+    assert nk("PRODUCT NAME") == "product_name"
+    assert nk("Unknown Field", return_none=True) is None
+
+
+def test_nafdac_table_to_grid(nafdac_mod):
+    html = """
+    <table>
+      <thead>
+        <tr><th>Product Name</th><th>Batch Number</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Darzalex</td><td>PKS1F01</td></tr>
+      </tbody>
+    </table>
+    """
+    soup = BeautifulSoup(html, "html.parser")
+    grid = nafdac_mod._table_to_grid(soup.select_one("table"))
+    assert grid[0] == ["Product Name", "Batch Number"]
+    assert grid[1] == ["Darzalex", "PKS1F01"]
+
+
+def test_nafdac_table_to_grid_empty(nafdac_mod):
+    soup = BeautifulSoup("<table></table>", "html.parser")
+    assert nafdac_mod._table_to_grid(soup.select_one("table")) == []
+
+
+def test_nafdac_get_first_name(nafdac_mod):
+    assert nafdac_mod._get_first_name("Darzalex Daratumumab") == "Darzalex"
+    assert nafdac_mod._get_first_name(["Darzalex", "Herceptin"]) == "Darzalex"
+    assert nafdac_mod._get_first_name("Darzalex® Injection") == "Darzalex"
+
+
+# --- Integration tests ---
+
+
 def test_parse_nafdac_table_matrix_3col(nafdac_scraper):
     html = """
     <table>
