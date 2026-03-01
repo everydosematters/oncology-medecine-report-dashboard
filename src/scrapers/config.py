@@ -6,6 +6,26 @@ FDA_US = {
     "api_endpoint": "https://api.fda.gov/drug/enforcement.json",
 }
 
+FDA_GH = {
+    "source_id": "FDA_GH",
+    "source_org": "Food and Drugs Authority (Ghana)",
+    "source_country": "Ghana",
+    "listing_url": "https://fdaghana.gov.gh/newsroom/product-recalls-and-alerts/",
+    "ajax_url": "https://fdaghana.gov.gh/wp-admin/admin-ajax.php",
+    "table_id": "47",
+    "headers": {
+        "User-Agent": (
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36"
+        ),
+        "Accept": "application/json, text/javascript, */*; q=0.01",
+        "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
+        "X-Requested-With": "XMLHttpRequest",
+        "Origin": "https://fdaghana.gov.gh",
+        "Referer": "https://fdaghana.gov.gh/newsroom/product-recalls-and-alerts/",
+    },
+}
+
 HEALTH_CANADA = {
     "source_id": "HEALTH_CANADA",
     "source_country": "Canada",
@@ -18,7 +38,6 @@ NAFDAC_NG = {
     "source_id": "NAFDAC_NG",
     "source_org": "National Agency for Food and Drug Administration and Control (NAFDAC)",
     "base_url": "https://nafdac.gov.ng/category/recalls-and-alerts/",
-    "type": "listing_with_detail_pages",
     "request": {"headers": {"Accept-Language": "en-GB,en;q=0.9"}},
     "listing": {
         "item_selector": "table tbody tr",
@@ -34,18 +53,5 @@ NAFDAC_NG = {
         "title_selector": "h1.entry-title",
         "body_selector": "div.entry-content",
         "publish_date_selector": "time.entry-date",
-    },
-    "filters": {
-        "oncology_keywords": [
-            "oncology",
-            "cancer",
-            "tumour",
-            "chemotherapy",
-            "immunotherapy",
-        ]
-    },
-    "defaults": {
-        "therapeutic_category": "Oncology",
-        "alert_type": "Recall / Safety Alert",
     },
 }

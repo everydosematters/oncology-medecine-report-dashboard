@@ -7,6 +7,7 @@ from datetime import datetime
 from src.scrapers.nafdac import NafDacScraper  # noqa: E402
 from src.scrapers.fdausa import FDAUSAScraper
 from src.scrapers.healthcanada import HealthCanadaScraper
+from src.scrapers.fdaghana import FDAGhanaScraper
 
 from database import create_table
 
@@ -16,7 +17,10 @@ def main():
 
     create_table()
 
-    start_date = datetime(2024, 1, 1)
+    start_date = datetime(2020, 1, 1)
+
+    fdaghana = FDAGhanaScraper(start_date)
+    fdaghana.standardize()
 
     healthcanada = HealthCanadaScraper(start_date)
     healthcanada.standardize(upload_to_db=True)

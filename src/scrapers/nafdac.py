@@ -2,29 +2,147 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
-from collections import defaultdict
-
-from bs4 import BeautifulSoup, Tag
 import re
 import sqlite3
+from collections import defaultdict
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
+
+from bs4 import BeautifulSoup, Tag
 
 from src.models import DrugAlert
 from src.database import upsert_df
 from scrapers.config import NAFDAC_NG
 
 from .base import BaseScraper
-from .utils import (
-    absolutize,
-    clean_text,
-    normalize_key,
-    table_to_grid,
-    get_first_name,
-    select_one_text,
-    parse_date,
-    remove_trademarks,
-)
+from .utils import absolutize, parse_date
+
+# --- NAFDAC-specific helpers (table parsing, label normalization, etc.) ---
+
+_CANONICAL_MAP = {
+    "product": "product_name",
+    "product name": "product_name",
+    "name of product": "product_name",
+    "batch": "batch_number",
+    "batch no": "batch_number",
+    "batch number": "batch_number",
+    "batch number ": "batch_number",
+    "lot": "batch_number",
+    "lot no": "batch_number",
+    "lot number": "batch_number",
+    "expiry": "expiry_date",
+    "expiry date": "expiry_date",
+    "expiration date": "expiry_date",
+    "exp date": "expiry_date",
+    "manufacturing date": "date_of_manufacture",
+    "manufacture date": "date_of_manufacture",
+    "date of manufacture": "date_of_manufacture",
+    "mfg date": "date_of_manufacture",
+    "manufacturer": "stated_manufacturer",
+    "stated manufacturer": "stated_manufacturer",
+    "stated product manufacturer": "stated_manufacturer",
+    "product manufacturer": "stated_manufacturer",
+}
+
+
+def _clean_text(s: Optional[str]) -> Optional[str]:
+    if not s:
+        return None
+    s = re.sub(r"\s+", " ", s).strip()
+    return s or None
+
+
+def _cell_text(cell: Tag) -> str:
+    return _clean_text(cell.get_text(" ", strip=True))
+
+
+def _normalize_key(label: str, return_none: bool = False) -> Optional[str]:
+    if not label:
+        return None
+    label = _clean_text(label)
+    label = label.rstrip(":")
+    label = re.sub(r"[^\w\s]+", " ", label)
+    label = re.sub(r"\s+", " ", label).lower()
+    if label in _CANONICAL_MAP:
+        return _CANONICAL_MAP[label]
+    for key, canonical in _CANONICAL_MAP.items():
+        if key in label:
+            return canonical
+    return re.sub(r"\s+", "_", label) if not return_none else None
+
+
+def _select_one_text(soup: BeautifulSoup, selector: str) -> Optional[str]:
+    if not selector:
+        return None
+    el = soup.select_one(selector)
+    if not el:
+        return None
+    return _clean_text(el.get_text(" ", strip=True))
+
+
+def _remove_trademarks(name) -> str:
+    return re.sub(r"[®™©]", "", name)
+
+
+def _table_to_grid(tbl: Tag) -> list[list[str]]:
+    trs = tbl.select("tr")
+    if not trs:
+        return []
+
+    def row_width(tr: Tag) -> int:
+        width = 0
+        for cell in tr.find_all(["td", "th"], recursive=False):
+            colspan = int(cell.get("colspan", 1) or 1)
+            width += colspan
+        return width
+
+    ncols = max(row_width(tr) for tr in trs) if trs else 0
+    if ncols == 0:
+        return []
+
+    grid: list[list[Optional[str]]] = []
+    pending: dict[int, tuple[int, str]] = {}
+
+    for tr in trs:
+        row: list[Optional[str]] = [None] * ncols
+        for col_idx, (remain, val) in list(pending.items()):
+            if remain > 0:
+                row[col_idx] = val
+                pending[col_idx] = (remain - 1, val)
+            if pending[col_idx][0] == 0:
+                pending.pop(col_idx, None)
+
+        col_ptr = 0
+        for cell in tr.find_all(["td", "th"], recursive=False):
+            while col_ptr < ncols and row[col_ptr] is not None:
+                col_ptr += 1
+            if col_ptr >= ncols:
+                break
+            text = _cell_text(cell)
+            colspan = int(cell.get("colspan", 1) or 1)
+            rowspan = int(cell.get("rowspan", 1) or 1)
+            for j in range(colspan):
+                if col_ptr + j < ncols:
+                    row[col_ptr + j] = text
+                    if rowspan > 1:
+                        pending[col_ptr + j] = (rowspan - 1, text)
+            col_ptr += colspan
+        grid.append(row)
+
+    out: list[list[str]] = []
+    for r in grid:
+        rr = [(c or "").strip() for c in r]
+        if any(rr):
+            out.append(rr)
+    return out
+
+
+def _get_first_name(names: str | list[str]) -> str:
+    if not names:
+        return ""
+    if isinstance(names, list):
+        names = names[0]
+    return _remove_trademarks(names.split(" ")[0])
 
 
 class NafDacScraper(BaseScraper):
@@ -43,7 +161,8 @@ class NafDacScraper(BaseScraper):
     def _get_nafdac_record_id(self, text: str) -> Optional[str]:
         """Get the id of the recall from NAFDAC website."""
 
-        match = re.search(r"No\.\s*(\d{1,3}/\d{4})", text)
+        pattern = r"(?:No\.\s*)?(\d{1,3}[A-Z]?/\d{4})"
+        match = re.search(pattern, text, re.IGNORECASE)
         if match:
             return match.group()
         return None
@@ -72,18 +191,9 @@ class NafDacScraper(BaseScraper):
         if not m:
             return None, None
 
-        return remove_trademarks(m.group(1).strip()), remove_trademarks(
+        return _remove_trademarks(m.group(1).strip()), _remove_trademarks(
             m.group(2).strip()
         )
-
-    def _get_nci_name(self, text: str) -> bool:
-        """Return True if the given text likely refers to an oncology product."""
-
-        filters = self.cfg.get("filters") or {}
-        keywords = filters.get("oncology_keywords") or ["oncology", "oncology"]
-        hay = (text or "").lower()
-        return any(k.lower() in hay for k in keywords)
-        # FIXME do a more specific filter some drugs cause oncology and are being trapped
 
     def _extract_product_name_from_text(self, tag: BeautifulSoup) -> Optional[str]:
         """Given a body text extract the product name."""
@@ -109,7 +219,7 @@ class NafDacScraper(BaseScraper):
 
         for strong in soup[-1].find_all("strong"):
             raw_label = strong.get_text(" ", strip=True)
-            key = normalize_key(raw_label, return_none=True)
+            key = _normalize_key(raw_label, return_none=True)
             if not key:
                 continue
 
@@ -132,7 +242,7 @@ class NafDacScraper(BaseScraper):
 
         result: dict[str, list[str]] = {}
 
-        rows = table_to_grid(table)
+        rows = _table_to_grid(table)
         if not rows:
             return result
 
@@ -140,7 +250,7 @@ class NafDacScraper(BaseScraper):
 
         # CASE A: matrix table (>= 3 columns)
         if ncols >= 3:
-            headers = [normalize_key(h) for h in rows[0]]
+            headers = [_normalize_key(h) for h in rows[0]]
 
             # Ensure we have keys
             for h in headers:
@@ -165,7 +275,7 @@ class NafDacScraper(BaseScraper):
         # CASE B: 2-column key/value table
         if ncols == 2:
             for label, value in rows:
-                key = normalize_key(label)
+                key = _normalize_key(label)
                 val = (value or "").strip()
                 if not key or not val:
                     continue
@@ -205,7 +315,9 @@ class NafDacScraper(BaseScraper):
         for row in rows:
             # First check that the alert is a drug, if not move on
             category = (
-                clean_text(row.select_one(fields["category"]).get_text(" ", strip=True))
+                _clean_text(
+                    row.select_one(fields["category"]).get_text(" ", strip=True)
+                )
                 or ""
             )
             if not re.search(r"drug", category, re.IGNORECASE):
@@ -223,7 +335,7 @@ class NafDacScraper(BaseScraper):
             if date_sel:
                 d_el = row.select_one(date_sel)
                 publish_date = (
-                    clean_text(d_el.get_text(" ", strip=True)) if d_el else None
+                    _clean_text(d_el.get_text(" ", strip=True)) if d_el else None
                 )
 
             # standardize
@@ -242,7 +354,7 @@ class NafDacScraper(BaseScraper):
                     detail_scraped["html"]
                 )
 
-            query = get_first_name(product_name)
+            query = _get_first_name(product_name)
             drug_name = self.get_nci_name(query)
 
             if not drug_name:
@@ -254,7 +366,7 @@ class NafDacScraper(BaseScraper):
                 if self.start_date > publish_date:
                     break
 
-            manufacturer = clean_text(
+            manufacturer = _clean_text(
                 row.select_one(fields["company"]).get_text(" ", strip=True)
             )
 
@@ -289,11 +401,13 @@ class NafDacScraper(BaseScraper):
     def _parse_detail_page(self, soup: BeautifulSoup) -> Dict[str, Any]:
         """Extract the contents of detail url."""
 
-        title = select_one_text(soup, "h1")
+        raw_title = _select_one_text(soup, "h1")
 
-        nafdac_record_id = self._get_nafdac_record_id(title)
+        nafdac_record_id = self._get_nafdac_record_id(raw_title)
 
-        title = re.search(r"[-–]\s*(.+)", title).group(1)
+        title = re.search(r"[-–]\s*(.+)", raw_title)
+
+        title = title.group(1) if title else raw_title
 
         source_country = self._extract_country_from_title(title)
 
