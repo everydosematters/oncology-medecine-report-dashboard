@@ -1,6 +1,13 @@
 name: Weekly drug recall scrape
 
 on:
+  push:
+    branches:
+      - "output-file-and-git-actions"
+  pull_request:
+    branches:
+      - "main" 
+    
   schedule:
     - cron: "0 6 * * 0" # Sundays 06:00 UTC
   workflow_dispatch: {}
