@@ -32,6 +32,8 @@ def create_table():
 def upsert_df(conn: sqlite3.Connection, data: list[DrugAlert]) -> None:
     """Upsert to database."""
 
+    if not data:
+        return None
     data = [alert.model_dump() for alert in data]
     cols = list(data[0].keys())
 
