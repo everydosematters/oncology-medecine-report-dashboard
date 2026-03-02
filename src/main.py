@@ -9,15 +9,18 @@ from src.scrapers.fdausa import FDAUSAScraper
 from src.scrapers.healthcanada import HealthCanadaScraper
 from src.scrapers.fdaghana import FDAGhanaScraper
 
-from database import create_table
+from database import create_table, create_csv
+import argparse
 
+import sys
+print("DEBUG argv:", sys.argv)
 
-def main():
+def main(start_date: datetime):
     """Run scrapers and export results as CSVs."""
-
+    
+    print(f"Starting scrapers from {start_date.strftime('%Y-%m-%d')}...")
+    
     create_table()
-
-    start_date = datetime(2020, 1, 1)
 
     fdaghana = FDAGhanaScraper(start_date)
     fdaghana.standardize()
@@ -31,6 +34,26 @@ def main():
     nafdac = NafDacScraper(start_date)
     nafdac.standardize(upload_to_db=True)
 
+    create_csv()
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Run regulatory scrapers and export CSV output."
+    )
+
+    parser.add_argument(
+        "--start-date",
+        type=str,
+        default="2020-01-01",
+        help="Start date in YYYY-MM-DD format (default: 2020-01-01)",
+    )
+
+    args = parser.parse_args()
+    print(args.start_date)
+
+    try:
+        start_date = datetime.strptime(args.start_date, "%Y-%m-%d")
+    except ValueError:
+        raise ValueError("Invalid date format. Use YYYY-MM-DD.")
+
+    main(start_date)
