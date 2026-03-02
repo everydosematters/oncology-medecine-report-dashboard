@@ -1,0 +1,79 @@
+name: Weekly drug recall scrape
+
+on:
+  schedule:
+    - cron: "0 6 * * 0" # Sundays 06:00 UTC
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: weekly-scrape
+  cancel-in-progress: true
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv sync --frozen
+
+      - name: Compute start date (7 days ago)
+        id: dates
+        run: |
+          START_DATE=$(date -u -d "7 days ago" +"%Y-%m-%d")
+          echo "start_date=$START_DATE" >> "$GITHUB_OUTPUT"
+          echo "Computed START_DATE=$START_DATE"
+          
+
+      - name: Run scraper (weekly lookback)
+        env:
+          START_DATE: ${{ steps.dates.outputs.start_date }}
+        run: |
+          cwd src
+          python uv run -m main --start-date "$START_DATE"
+
+      - name: Commit updated DB + CSVs
+        env:
+          START_DATE: ${{ steps.dates.outputs.start_date }}
+        run: |
+          DB_PATH="data/recalls.db"
+          CSV_GLOB="data/recalls.csv"
+          
+
+          # Configure git identity for the bot commit
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Stage outputs (only if they exist)
+          if [ -f "$DB_PATH" ]; then
+            git add "$DB_PATH"
+          else
+            echo "DB not found at $DB_PATH (skipping)"
+          fi
+
+          # Add CSVs (glob may match nothing; suppress error)
+          git add $CSV_GLOB 2>/dev/null || true
+
+          # Only commit if there are staged changes
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Weekly scrape: update DB + CSVs (start-date=$START_DATE)"
+          git push

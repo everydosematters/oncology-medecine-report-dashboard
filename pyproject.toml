@@ -5,13 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "oncology-medecine-report-dashboard"
 version = "0.1.0"
-description = "Dashboard for oncology medicine reports from FDA and NAFDAC"
+description = "Dashboard for oncology medicine reports"
 readme = "README.md"
 requires-python = ">=3.8"
 dependencies = [
     "requests",
     "beautifulsoup4",
     "pydantic>=2.0",
+    "pandas>=2.0.3",
+    "pyflakes>=3.2.0",
 ]
 
 [project.optional-dependencies]
