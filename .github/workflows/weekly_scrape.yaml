@@ -52,7 +52,7 @@ jobs:
           START_DATE: ${{ steps.dates.outputs.start_date }}
         run: |
           cd src
-          python uv run -m main --start-date "$START_DATE"
+          uv run -m main --start-date "$START_DATE"
 
       - name: Commit updated DB + CSVs
         env:
