@@ -58,6 +58,7 @@ jobs:
         env:
           START_DATE: ${{ steps.dates.outputs.start_date }}
         run: |
+          cd src
           DB_PATH="data/recalls.db"
           CSV_GLOB="data/recalls.csv"
           
