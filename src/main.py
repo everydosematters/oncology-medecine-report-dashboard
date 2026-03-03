@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 def run_scraper(scraper: BaseScraper, start_date: datetime):
     try:
-        logger.info(f"Running {BaseScraper.__name__}...")
+        logger.info(f"Running {scraper.__name__}...")
         scraper(start_date).standardize(upload_to_db=True)
-        logger.info(f"Completed {BaseScraper.__name__}...")
+        logger.info(f"Completed {scraper.__name__}...")
     except Exception as e:
-        logger.error(f"Error on {BaseScraper.__name__}: {e}")
+        logger.error(f"Error on {scraper.__name__}: {e}")
 
 
 def main(start_date: datetime):
