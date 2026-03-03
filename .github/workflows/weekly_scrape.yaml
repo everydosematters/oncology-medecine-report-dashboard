@@ -3,7 +3,7 @@ name: Weekly drug recall scrape
 on:
   push:
     branches:
-      - "output-file-and-git-actions"
+      - "**"
   pull_request:
     branches:
       - "main" 
