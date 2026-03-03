@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
-from typing import List
-from typing import Optional
+from typing import List, Optional
+
 import requests
 
-from src.models import DrugAlert
+from scrapers.config import HEALTH_CANADA
 from src.database import upsert_df
+from src.models import DrugAlert
 
 from .base import BaseScraper
 from .utils import parse_date
-import sqlite3
-from scrapers.config import HEALTH_CANADA
 
 
 class HealthCanadaScraper(BaseScraper):

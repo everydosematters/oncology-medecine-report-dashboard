@@ -1,8 +1,11 @@
 """Database connection utilities."""
 
 import sqlite3
-from src.models import DrugAlert
+
 import pandas as pd
+
+from src.models import DrugAlert
+
 
 def create_table():
     """Create a table in SQLite."""
@@ -43,7 +46,7 @@ def upsert_df(conn: sqlite3.Connection, data: list[DrugAlert]) -> None:
     INSERT INTO recalls ({", ".join(cols)})
     VALUES ({placeholders})
     ON CONFLICT(record_id) DO UPDATE SET
-        -- required/provenance fields: always update (assumes latest scrape is most correct)
+        -- required/provenance fields: always update
         source_id = excluded.source_id,
         source_org = excluded.source_org,
         source_url = excluded.source_url,
@@ -79,9 +82,34 @@ def create_csv():
         query = "SELECT * FROM recalls"
         cursor.execute(query)
         data = cursor.fetchall()
-    
-    column_map = {"source_org": "Organization", "source_country": "Country", "product_name": "Product Name", "publish_date": "Publish Date", "reason": "Reason", "more_info": "More Info"}
-    df = pd.DataFrame.from_records(data, columns=["record_id", "source_id", "Organization", "URL", "Product Name", "Source Country", "Manufacturer", "Distributor", "Publish Date", "scraped_at", "Reason", "More Info"])
-    df = df.rename(columns=column_map).drop(columns=["record_id", "source_id", "scraped_at"])
+
+    column_map = {
+        "source_org": "Organization",
+        "source_country": "Country",
+        "product_name": "Product Name",
+        "publish_date": "Publish Date",
+        "reason": "Reason",
+        "more_info": "More Info",
+    }
+    df = pd.DataFrame.from_records(
+        data,
+        columns=[
+            "record_id",
+            "source_id",
+            "Organization",
+            "URL",
+            "Product Name",
+            "Source Country",
+            "Manufacturer",
+            "Distributor",
+            "Publish Date",
+            "scraped_at",
+            "Reason",
+            "More Info",
+        ],
+    )
+    df = df.rename(columns=column_map).drop(
+        columns=["record_id", "source_id", "scraped_at"]
+    )
     df = df.sort_values(by="Publish Date", ascending=False)
     df.to_csv("data/recalls.csv", index=False)

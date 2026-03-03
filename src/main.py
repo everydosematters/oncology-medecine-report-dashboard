@@ -2,39 +2,49 @@
 
 from __future__ import annotations
 
+import argparse
+import logging
+import os
 from datetime import datetime
 
-from src.scrapers.nafdac import NafDacScraper  # noqa: E402
+from database import create_csv, create_table
+from src.scrapers.base import BaseScraper
+from src.scrapers.fdaghana import FDAGhanaScraper
 from src.scrapers.fdausa import FDAUSAScraper
 from src.scrapers.healthcanada import HealthCanadaScraper
-from src.scrapers.fdaghana import FDAGhanaScraper
+from src.scrapers.nafdac import NafDacScraper  # noqa: E402
 
-from database import create_table, create_csv
-import argparse
+LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO").upper()
 
-import sys
-print("DEBUG argv:", sys.argv)
+logging.basicConfig(
+    level=getattr(logging, LOG_LEVEL),
+    format="%(asctime)s - %(levelname)s - %(message)s",
+)
+
+logger = logging.getLogger(__name__)
+
+
+def run_scraper(scraper: BaseScraper, start_date: datetime):
+    try:
+        logger.info(f"Running {scraper.__class__.__name__}...")
+        scraper(start_date).standardize(upload_to_db=True)
+        logger.info(f"Completed {scraper.__class__.__name__}...")
+    except Exception as e:
+        logger.error(f"Error on {scraper.__class__.__name__}: {e}")
+
 
 def main(start_date: datetime):
     """Run scrapers and export results as CSVs."""
-    
-    print(f"Starting scrapers from {start_date.strftime('%Y-%m-%d')}...")
-    
+
+    logger.info(f"Starting scrapers from {start_date.strftime('%Y-%m-%d')}...")
+
     create_table()
 
-    fdaghana = FDAGhanaScraper(start_date)
-    fdaghana.standardize()
-
-    healthcanada = HealthCanadaScraper(start_date)
-    healthcanada.standardize(upload_to_db=True)
-
-    fdausa = FDAUSAScraper(start_date)
-    fdausa.standardize(upload_to_db=True)
-
-    nafdac = NafDacScraper(start_date)
-    nafdac.standardize(upload_to_db=True)
+    for scraper in [FDAGhanaScraper, FDAUSAScraper, NafDacScraper, HealthCanadaScraper]:
+        run_scraper(scraper, start_date)
 
     create_csv()
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
@@ -49,11 +59,10 @@ if __name__ == "__main__":
     )
 
     args = parser.parse_args()
-    print(args.start_date)
 
     try:
         start_date = datetime.strptime(args.start_date, "%Y-%m-%d")
     except ValueError:
-        raise ValueError("Invalid date format. Use YYYY-MM-DD.")
+        logger.error("Invalid date format. Use YYYY-MM-DD.")
 
     main(start_date)

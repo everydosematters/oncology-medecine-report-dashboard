@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import re
+import sqlite3
+import time
 from datetime import datetime, timezone
 from typing import List
-import re
-import requests
-import time
 
-from src.models import DrugAlert
+import requests
+
+from scrapers.config import FDA_US
 from src.database import upsert_df
+from src.models import DrugAlert
 
 from .base import BaseScraper
 from .utils import parse_date
-import sqlite3
-from scrapers.config import FDA_US
 
 
 class FDAUSAScraper(BaseScraper):

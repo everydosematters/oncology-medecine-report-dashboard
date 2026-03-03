@@ -2,17 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional, Tuple
 import json
 import re
 import sqlite3
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
 from bs4 import BeautifulSoup
 
-from src.models import DrugAlert
 from src.database import upsert_df
+from src.models import DrugAlert
 
 from .base import BaseScraper
 from .config import FDA_GH

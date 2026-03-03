@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup, Tag
 
-from src.models import DrugAlert
-from src.database import upsert_df
 from scrapers.config import NAFDAC_NG
+from src.database import upsert_df
+from src.models import DrugAlert
 
 from .base import BaseScraper
 from .utils import absolutize, parse_date
@@ -418,7 +418,6 @@ class NafDacScraper(BaseScraper):
         if soup.find("table"):
             product_specs = self._extract_product_specs(soup)
         else:
-
             product_specs = self._extract_product_specs_from_text(soup)
 
         return {

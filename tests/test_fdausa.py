@@ -67,7 +67,7 @@ def test_standardize_mocked(fdausa_scraper, monkeypatch) -> None:
         {
             "recall_number": "D-0115-2026",
             "country": "United States",
-            "product_description": "Herceptin, 10 mg/4 mL, Mfd by: ProRx, Exton, PA. NDC: 84139-225-04",
+            "product_description": "Herceptin, 10 mg/4 mL, Mfd by: ProRx, Exton, PA. NDC: 84139",
             "reason_for_recall": "Lack of Assurance of Sterility",
             "report_date": "2025-11-05",
             "code_info": "Lot PRORX050925-1",
