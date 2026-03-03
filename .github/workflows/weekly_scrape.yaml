@@ -42,7 +42,7 @@ jobs:
       - name: Compute start date (7 days ago)
         id: dates
         run: |
-          START_DATE=$(date -u -d "365 days ago" +"%Y-%m-%d")
+          START_DATE=$(date -u -d "7 days ago" +"%Y-%m-%d")
           echo "start_date=$START_DATE" >> "$GITHUB_OUTPUT"
           echo "Computed START_DATE=$START_DATE"
           
