@@ -2,7 +2,7 @@
 
 import sqlite3
 from src.models import DrugAlert
-
+import pandas as pd
 
 def create_table():
     """Create a table in SQLite."""
@@ -32,6 +32,8 @@ def create_table():
 def upsert_df(conn: sqlite3.Connection, data: list[DrugAlert]) -> None:
     """Upsert to database."""
 
+    if not data:
+        return None
     data = [alert.model_dump() for alert in data]
     cols = list(data[0].keys())
 
@@ -66,3 +68,20 @@ def upsert_df(conn: sqlite3.Connection, data: list[DrugAlert]) -> None:
 
     cur = conn.cursor()
     cur.executemany(sql, [tuple(row.get(c) for c in cols) for row in data])
+
+
+def create_csv():
+    """Create a CSV file from the database."""
+
+    with sqlite3.connect("data/recalls.db") as conn:
+        cursor = conn.cursor()
+
+        query = "SELECT * FROM recalls"
+        cursor.execute(query)
+        data = cursor.fetchall()
+    
+    column_map = {"source_org": "Organization", "source_country": "Country", "product_name": "Product Name", "publish_date": "Publish Date", "reason": "Reason", "more_info": "More Info"}
+    df = pd.DataFrame.from_records(data, columns=["record_id", "source_id", "Organization", "URL", "Product Name", "Source Country", "Manufacturer", "Distributor", "Publish Date", "scraped_at", "Reason", "More Info"])
+    df = df.rename(columns=column_map).drop(columns=["record_id", "source_id", "scraped_at"])
+    df = df.sort_values(by="Publish Date", ascending=False)
+    df.to_csv("data/recalls.csv", index=False)

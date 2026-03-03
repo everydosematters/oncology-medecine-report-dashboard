@@ -86,7 +86,6 @@ class FDAUSAScraper(BaseScraper):
             page_params["skip"] = skip
 
             resp = requests.get(endpoint, params=page_params, timeout=30)
-            resp.raise_for_status()
             data = resp.json()
 
             results = data.get("results", [])

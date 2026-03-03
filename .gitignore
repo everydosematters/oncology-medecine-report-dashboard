@@ -173,10 +173,7 @@ seed/production/profiles_hub.*
 # database
 # **/*.db
 
-# csv files
-**/*.csv
 
 # json, text, lock files, for the meantime
 # **/*.json
 **/*.txt
-**/*.lock
