@@ -75,9 +75,7 @@ class FDAUSAScraper(BaseScraper):
     ):
         """Paginate openFDA results using skip/limit."""
 
-        page_size = min(
-            page_size, 1000
-        )  # openFDA max limit :contentReference[oaicite:1]{index=1}
+        page_size = min(page_size, 1000)  # openFDA max limit :contentReference[oaicite:1]{index=1}
         skip = 0
         out = []
 
@@ -118,7 +116,7 @@ class FDAUSAScraper(BaseScraper):
         results = []
 
         params = {
-            "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",
+            "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",  # noqa: E501
             "limit": 1000,
         }
 
@@ -140,9 +138,7 @@ class FDAUSAScraper(BaseScraper):
             if not drug_name:
                 continue
 
-            record_id = self.make_record_id(
-                self.source_id, drug_name, record["recall_number"]
-            )
+            record_id = self.make_record_id(self.source_id, drug_name, record["recall_number"])
 
             results.append(
                 DrugAlert(

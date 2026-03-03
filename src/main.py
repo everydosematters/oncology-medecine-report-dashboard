@@ -26,11 +26,11 @@ logger = logging.getLogger(__name__)
 
 def run_scraper(scraper: BaseScraper, start_date: datetime):
     try:
-        logger.info(f"Running {scraper.__class__.__name__}...")
+        logger.info(f"Running {BaseScraper.__name__}...")
         scraper(start_date).standardize(upload_to_db=True)
-        logger.info(f"Completed {scraper.__class__.__name__}...")
+        logger.info(f"Completed {BaseScraper.__name__}...")
     except Exception as e:
-        logger.error(f"Error on {scraper.__class__.__name__}: {e}")
+        logger.error(f"Error on {BaseScraper.__name__}: {e}")
 
 
 def main(start_date: datetime):
@@ -47,9 +47,7 @@ def main(start_date: datetime):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Run regulatory scrapers and export CSV output."
-    )
+    parser = argparse.ArgumentParser(description="Run regulatory scrapers and export CSV output.")
 
     parser.add_argument(
         "--start-date",
