@@ -90,6 +90,7 @@ def create_csv():
         "publish_date": "Publish Date",
         "reason": "Reason",
         "more_info": "More Info",
+        "manufacturer": "Manufacturer (as displayed)",
     }
     df = pd.DataFrame.from_records(
         data,
@@ -100,7 +101,7 @@ def create_csv():
             "URL",
             "Product Name",
             "Source Country",
-            "Manufacturer",
+            "Manufacturer (as displayed)",
             "Distributor",
             "Publish Date",
             "scraped_at",
@@ -117,7 +118,7 @@ def create_csv():
             "Organization",
             "Source Country",
             "Product Name",
-            "Manufacturer",
+            "Manufacturer (as displayed)",
             "Distributor",
             "Reason",
             "More Info",
