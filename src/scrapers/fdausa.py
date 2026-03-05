@@ -147,7 +147,7 @@ class FDAUSAScraper(BaseScraper):
                     source_org=self.source_org,
                     source_country=record["country"],
                     source_url=url,
-                    publish_date=parse_date(record["report_date"]).isoformat(),
+                    publish_date=parse_date(record["report_date"]).isoformat().split("T")[0],
                     manufacturer=manufacturer,
                     distributor=distributor,
                     reason=record["reason_for_recall"],

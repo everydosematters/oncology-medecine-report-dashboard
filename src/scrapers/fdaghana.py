@@ -297,9 +297,7 @@ class FDAGhanaScraper(BaseScraper):
         soup = BeautifulSoup(html, "html.parser")
 
         # Find label "Reason for Recall:" then grab nearby text
-        for tag in soup.find_all(
-            ["strong", "b", "h1", "h2", "h3", "h4", "h5", "p", "div"]
-        ):
+        for tag in soup.find_all(["strong", "b", "h1", "h2", "h3", "h4", "h5", "p", "div"]):
             txt = tag.get_text(" ", strip=True).lower()
             if txt == "reason for recall:":
                 # pull next meaningful text block
@@ -404,7 +402,7 @@ class FDAGhanaScraper(BaseScraper):
             source_org=self.source_org,
             source_country=self.source_country,
             source_url=source_url or self.cfg["listing_url"],
-            publish_date=publish_dt.isoformat() if publish_dt else None,
+            publish_date=publish_dt.isoformat().split("T")[0] if publish_dt else None,
             manufacturer=manufacturer,
             distributor=recalling_firm,
             reason=reason,

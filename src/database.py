@@ -108,8 +108,6 @@ def create_csv():
             "More Info",
         ],
     )
-    df = df.rename(columns=column_map).drop(
-        columns=["record_id", "source_id", "scraped_at"]
-    )
-    df = df.sort_values(by="Publish Date", ascending=False)
+    df = df.rename(columns=column_map).drop(columns=["record_id", "source_id", "scraped_at"])
+    df = df.sort_values(by="Publish Date", ascending=False).drop_duplicates()
     df.to_csv("data/recalls.csv", index=False)

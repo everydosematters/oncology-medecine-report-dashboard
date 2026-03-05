@@ -128,7 +128,7 @@ class HealthCanadaScraper(BaseScraper):
                     source_org=self.source_org,
                     source_country=self.cfg.get("source_country", "Canada"),
                     source_url=source_url,
-                    publish_date=publish_date_iso,
+                    publish_date=publish_date_iso.split("T")[0],
                     manufacturer=None,
                     distributor=None,
                     reason=reason,
