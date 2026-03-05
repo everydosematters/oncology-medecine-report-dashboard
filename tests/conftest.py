@@ -1,11 +1,10 @@
 """Conftest"""
 
-import sys
-from pathlib import Path
-
 import dataclasses
 import importlib.util
+import sys
 import types
+from pathlib import Path
 
 import pytest
 

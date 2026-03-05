@@ -10,9 +10,9 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from bs4 import BeautifulSoup, Tag
 
-from src.models import DrugAlert
-from src.database import upsert_df
 from scrapers.config import NAFDAC_NG
+from src.database import upsert_df
+from src.models import DrugAlert
 
 from .base import BaseScraper
 from .utils import absolutize, parse_date
@@ -191,9 +191,7 @@ class NafDacScraper(BaseScraper):
         if not m:
             return None, None
 
-        return _remove_trademarks(m.group(1).strip()), _remove_trademarks(
-            m.group(2).strip()
-        )
+        return _remove_trademarks(m.group(1).strip()), _remove_trademarks(m.group(2).strip())
 
     def _extract_product_name_from_text(self, tag: BeautifulSoup) -> Optional[str]:
         """Given a body text extract the product name."""
@@ -210,9 +208,7 @@ class NafDacScraper(BaseScraper):
                 return m.group(1).strip()
         return None
 
-    def _extract_product_specs_from_text(
-        self, *soup: BeautifulSoup
-    ) -> dict[str, list[str]]:
+    def _extract_product_specs_from_text(self, *soup: BeautifulSoup) -> dict[str, list[str]]:
         """Extract specs from a table."""
 
         result: dict[str, list[str]] = {}
@@ -227,9 +223,7 @@ class NafDacScraper(BaseScraper):
             if not sib:
                 continue
 
-            value = (
-                sib.strip() if isinstance(sib, str) else sib.get_text(" ", strip=True)
-            )
+            value = sib.strip() if isinstance(sib, str) else sib.get_text(" ", strip=True)
             value = " ".join(value.split())
             # FIXME ['Phesgo® 600mg/600mg/10ml injection', '.']
             if value:
@@ -297,9 +291,7 @@ class NafDacScraper(BaseScraper):
                 parsed_table.update(table_specs)
         return parsed_table
 
-    def _parse_listing_page(
-        self, soup: BeautifulSoup, listing_url: str
-    ) -> List[DrugAlert]:
+    def _parse_listing_page(self, soup: BeautifulSoup, listing_url: str) -> List[DrugAlert]:
         """Reads table rows from tbody and extracts all necessary info."""
 
         listing_cfg = self.cfg.get("listing") or {}
@@ -315,10 +307,7 @@ class NafDacScraper(BaseScraper):
         for row in rows:
             # First check that the alert is a drug, if not move on
             category = (
-                _clean_text(
-                    row.select_one(fields["category"]).get_text(" ", strip=True)
-                )
-                or ""
+                _clean_text(row.select_one(fields["category"]).get_text(" ", strip=True)) or ""
             )
             if not re.search(r"drug", category, re.IGNORECASE):
                 # skip this if it is not a drug
@@ -334,9 +323,7 @@ class NafDacScraper(BaseScraper):
             publish_date = None
             if date_sel:
                 d_el = row.select_one(date_sel)
-                publish_date = (
-                    _clean_text(d_el.get_text(" ", strip=True)) if d_el else None
-                )
+                publish_date = _clean_text(d_el.get_text(" ", strip=True)) if d_el else None
 
             # standardize
             detail_scraped = self.scrape(detail_url)
@@ -350,9 +337,7 @@ class NafDacScraper(BaseScraper):
             )
 
             if not product_name:
-                product_name = self._extract_product_name_from_text(
-                    detail_scraped["html"]
-                )
+                product_name = self._extract_product_name_from_text(detail_scraped["html"])
 
             query = _get_first_name(product_name)
             drug_name = self.get_nci_name(query)
@@ -366,9 +351,7 @@ class NafDacScraper(BaseScraper):
                 if self.start_date > publish_date:
                     break
 
-            manufacturer = _clean_text(
-                row.select_one(fields["company"]).get_text(" ", strip=True)
-            )
+            manufacturer = _clean_text(row.select_one(fields["company"]).get_text(" ", strip=True))
 
             record_id = self.make_record_id(
                 self.source_id, drug_name, parsed.get("nafdac_record_id")
@@ -388,7 +371,7 @@ class NafDacScraper(BaseScraper):
                     source_org=self.source_org,
                     source_country=parsed.get("source_country") or "Nigeria",
                     source_url=detail_url,
-                    publish_date=publish_date.isoformat(),
+                    publish_date=publish_date.isoformat().split("T")[0],
                     manufacturer=manufacturer,
                     reason=parsed.get("title"),
                     product_name=drug_name,
@@ -411,14 +394,11 @@ class NafDacScraper(BaseScraper):
 
         source_country = self._extract_country_from_title(title)
 
-        brand_name, generic_name = self._extract_brand_name_and_generic_name_from_title(
-            title
-        )
+        brand_name, generic_name = self._extract_brand_name_and_generic_name_from_title(title)
 
         if soup.find("table"):
             product_specs = self._extract_product_specs(soup)
         else:
-
             product_specs = self._extract_product_specs_from_text(soup)
 
         return {
@@ -433,9 +413,7 @@ class NafDacScraper(BaseScraper):
     def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
         """Standardize the extracted content."""
 
-        listing_url = self.cfg[
-            "base_url"
-        ]  # Base is sufficient gives all the listings in this case
+        listing_url = self.cfg["base_url"]  # Base is sufficient gives all the listings in this case
 
         listing_scraped = self.scrape(listing_url)
         results = self._parse_listing_page(

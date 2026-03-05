@@ -28,6 +28,6 @@ class DrugAlert(pyd.BaseModel):
     product_name: str = None
 
     model_config = pyd.ConfigDict(
-        extra="forbid",  # catch accidental fields like body_text if model doesn't include it
+        extra="forbid",  # catch accidental fields
         validate_assignment=True,
     )

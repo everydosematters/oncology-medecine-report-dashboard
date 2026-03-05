@@ -43,10 +43,7 @@ def test_detect_column_count_from_html() -> None:
     """
     assert fdaghana._detect_column_count_from_html(html) == 3
 
-    assert (
-        fdaghana._detect_column_count_from_html("<html><body>no table</body></html>")
-        == 13
-    )
+    assert fdaghana._detect_column_count_from_html("<html><body>no table</body></html>") == 13
 
 
 def test_extract_link_and_text() -> None:
@@ -198,9 +195,7 @@ def test_standardize_mocked(fdaghana_scraper, monkeypatch) -> None:
         self._wdt_nonce = "fake_nonce"
 
     monkeypatch.setattr(fdaghana.GhanaWpDataTablesClient, "prime", fake_prime)
-    monkeypatch.setattr(
-        fdaghana.GhanaWpDataTablesClient, "discover_wdt_nonce", fake_discover
-    )
+    monkeypatch.setattr(fdaghana.GhanaWpDataTablesClient, "discover_wdt_nonce", fake_discover)
 
     records = scraper.standardize()
 

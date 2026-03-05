@@ -2,19 +2,20 @@
 
 from __future__ import annotations
 
+import re
+import sqlite3
+import time
 from datetime import datetime, timezone
 from typing import List
-import re
-import requests
-import time
 
-from src.models import DrugAlert
+import requests
+
+from scrapers.config import FDA_US
 from src.database import upsert_df
+from src.models import DrugAlert
 
 from .base import BaseScraper
 from .utils import parse_date
-import sqlite3
-from scrapers.config import FDA_US
 
 
 class FDAUSAScraper(BaseScraper):
@@ -74,9 +75,7 @@ class FDAUSAScraper(BaseScraper):
     ):
         """Paginate openFDA results using skip/limit."""
 
-        page_size = min(
-            page_size, 1000
-        )  # openFDA max limit :contentReference[oaicite:1]{index=1}
+        page_size = min(page_size, 1000)  # openFDA max limit :contentReference[oaicite:1]{index=1}
         skip = 0
         out = []
 
@@ -117,7 +116,7 @@ class FDAUSAScraper(BaseScraper):
         results = []
 
         params = {
-            "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",
+            "search": f"report_date:{self._openfda_date_range(self.start_date, datetime.now())} AND product_type:Drugs",  # noqa: E501
             "limit": 1000,
         }
 
@@ -139,9 +138,7 @@ class FDAUSAScraper(BaseScraper):
             if not drug_name:
                 continue
 
-            record_id = self.make_record_id(
-                self.source_id, drug_name, record["recall_number"]
-            )
+            record_id = self.make_record_id(self.source_id, drug_name, record["recall_number"])
 
             results.append(
                 DrugAlert(
@@ -150,7 +147,7 @@ class FDAUSAScraper(BaseScraper):
                     source_org=self.source_org,
                     source_country=record["country"],
                     source_url=url,
-                    publish_date=parse_date(record["report_date"]).isoformat(),
+                    publish_date=parse_date(record["report_date"]).isoformat().split("T")[0],
                     manufacturer=manufacturer,
                     distributor=distributor,
                     reason=record["reason_for_recall"],

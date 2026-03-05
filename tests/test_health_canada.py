@@ -95,9 +95,7 @@ def test_standardize_mocked(healthcanada_scraper, monkeypatch) -> None:
     assert "https://recalls.canada.ca/example" in (r.source_url or "")
 
 
-def test_standardize_skips_non_health_categories(
-    healthcanada_scraper, monkeypatch
-) -> None:
+def test_standardize_skips_non_health_categories(healthcanada_scraper, monkeypatch) -> None:
     """Records with non-health categories are skipped."""
     scraper = healthcanada_scraper
     monkeypatch.setattr(scraper, "oncology_drugs", ["herceptin"])
@@ -122,9 +120,7 @@ def test_standardize_skips_non_health_categories(
     assert len(records) == 0
 
 
-def test_standardize_skips_non_oncology_drugs(
-    healthcanada_scraper, monkeypatch
-) -> None:
+def test_standardize_skips_non_oncology_drugs(healthcanada_scraper, monkeypatch) -> None:
     """Records for drugs not in oncology list are skipped."""
     scraper = healthcanada_scraper
     monkeypatch.setattr(scraper, "oncology_drugs", ["herceptin"])  # only Herceptin

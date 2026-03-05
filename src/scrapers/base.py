@@ -1,17 +1,17 @@
 """Base scraper utilities shared across site-specific scrapers."""
 
 import hashlib
+import json
 from abc import ABC, abstractmethod
 from datetime import datetime
 from typing import Any, Dict, List, Optional, final
-
 
 import requests
 from bs4 import BeautifulSoup
 
 from src.models import DrugAlert
-from .utils import normalize_drug_name, extract_drug_tokens, read_json
-import json
+
+from .utils import extract_drug_tokens, normalize_drug_name, read_json
 
 
 class BaseScraper(ABC):
@@ -35,9 +35,7 @@ class BaseScraper(ABC):
         self.timeout = timeout
         self.start_date = start_date
         self.search_url = "https://webapis.oncology.gov/drugdictionary/v1/Drugs/search"
-        self.nci_url = (
-            "https://www.oncology.gov/about-oncology/treatment/drugs/oncology-drugs"
-        )
+        self.nci_url = "https://www.oncology.gov/about-oncology/treatment/drugs/oncology-drugs"
 
         # Safe default UA
         self.args.setdefault("headers", {})
@@ -90,9 +88,11 @@ class BaseScraper(ABC):
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()
 
     @final
-    def get_nci_name(self, drug_name: str, approved_drugs: list = []) -> Optional[str]:
+    def get_nci_name(self, drug_name: str, approved_drugs: list = None) -> Optional[str]:
         """Look up the NCI dictionary for the drug name."""
 
+        if approved_drugs is None:
+            approved_drugs = []
         if not drug_name:
             return None
         if not approved_drugs:
