@@ -116,6 +116,7 @@ def create_csv():
             "Publish Date",
             "Organization",
             "Source Country",
+            "Product Name",
             "Manufacturer",
             "Distributor",
             "Reason",
