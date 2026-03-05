@@ -123,11 +123,7 @@ class FDAUSAScraper(BaseScraper):
         data = self._fetch_all_openfda(self.cfg["api_endpoint"], params)
 
         for record in data:
-            url = (
-                self.cfg["api_endpoint"]
-                + "?search=recall_number:"
-                + record.get("recall_number", "")
-            )
+            url = self.cfg["api_endpoint"] + "?search=event_id:" + record.get("event_id", "")
             description = record["product_description"]
             product_name = description.split(",")[0]
             query = product_name.split(" ")[0]
@@ -138,7 +134,7 @@ class FDAUSAScraper(BaseScraper):
             if not drug_name:
                 continue
 
-            record_id = self.make_record_id(self.source_id, drug_name, record["recall_number"])
+            record_id = self.make_record_id(self.source_id, drug_name, record["event_id"])
 
             results.append(
                 DrugAlert(
