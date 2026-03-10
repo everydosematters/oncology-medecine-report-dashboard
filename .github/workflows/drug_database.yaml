@@ -1,0 +1,52 @@
+name: Drug Database
+
+on:
+  schedule:
+    - cron: "0 0 1 */6 *"   # Jan 1 and Jul 1 
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: drug-database
+  cancel-in-progress: true
+
+jobs:
+  update-drug-database:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Update oncology drug database
+        run: |
+          cd src
+          uv run -m main --update-drug-database
+
+      - name: Commit updated JSON
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add src/data/nci_oncology_drugs.json
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit -m "Update NCI oncology drug database"
+          git push
