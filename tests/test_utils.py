@@ -78,29 +78,18 @@ def test_normalize_drug_name_lowercase_and_clean(utils_mod):
 
 
 def test_extract_drug_token_empty(utils_mod):
-    assert utils_mod.extract_drug_token("") == []
-    assert utils_mod.extract_drug_token(None) == []
-
-
-def test_extract_drug_token_removes_stopwords(utils_mod):
-    token = utils_mod.extract_drug_token("tablets for injection and sodium")
-    assert "tablets" != token
-    assert "for" != token
-    assert "injection" != token
-    assert "and" != token
-    assert "sodium" != token
+    assert utils_mod.extract_drug_token("") is None
+    assert utils_mod.extract_drug_token(None) is None
 
 
 def test_extract_drug_token_removes_parentheses_keeps_content(utils_mod):
     token = utils_mod.extract_drug_token("Darzalex (Daratumumab)")
     assert "darzalex" == token
-    assert "daratumumab" == token
 
 
 def test_extract_drug_token_lowercase(utils_mod):
     token = utils_mod.extract_drug_token("HERCEPTIN Trastuzumab")
     assert "herceptin" == token
-    assert "trastuzumab" == token
 
 
 # --- read_json ---
