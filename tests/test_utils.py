@@ -10,8 +10,7 @@ import pytest
 
 def test_absolutize_relative_path(utils_mod):
     assert (
-        utils_mod.absolutize("https://example.com/page/", "sub")
-        == "https://example.com/page/sub"
+        utils_mod.absolutize("https://example.com/page/", "sub") == "https://example.com/page/sub"
     )
     assert (
         utils_mod.absolutize("https://example.com/", "recalls/123")
@@ -75,33 +74,22 @@ def test_normalize_drug_name_lowercase_and_clean(utils_mod):
     assert result == "herceptin"
 
 
-# --- extract_drug_tokens ---
+# --- extract_drug_token ---
 
 
-def test_extract_drug_tokens_empty(utils_mod):
-    assert utils_mod.extract_drug_tokens("") == []
-    assert utils_mod.extract_drug_tokens(None) == []
+def test_extract_drug_token_empty(utils_mod):
+    assert utils_mod.extract_drug_token("") is None
+    assert utils_mod.extract_drug_token(None) is None
 
 
-def test_extract_drug_tokens_removes_stopwords(utils_mod):
-    tokens = utils_mod.extract_drug_tokens("tablets for injection and sodium")
-    assert "tablets" not in tokens
-    assert "for" not in tokens
-    assert "injection" not in tokens
-    assert "and" not in tokens
-    assert "sodium" not in tokens
+def test_extract_drug_token_removes_parentheses_keeps_content(utils_mod):
+    token = utils_mod.extract_drug_token("Darzalex (Daratumumab)")
+    assert "darzalex" == token
 
 
-def test_extract_drug_tokens_removes_parentheses_keeps_content(utils_mod):
-    tokens = utils_mod.extract_drug_tokens("Darzalex (Daratumumab)")
-    assert "darzalex" in tokens
-    assert "daratumumab" in tokens
-
-
-def test_extract_drug_tokens_lowercase(utils_mod):
-    tokens = utils_mod.extract_drug_tokens("HERCEPTIN Trastuzumab")
-    assert "herceptin" in tokens
-    assert "trastuzumab" in tokens
+def test_extract_drug_token_lowercase(utils_mod):
+    token = utils_mod.extract_drug_token("HERCEPTIN Trastuzumab")
+    assert "herceptin" == token
 
 
 # --- read_json ---

@@ -6,6 +6,7 @@ import argparse
 import logging
 import os
 from datetime import datetime
+from typing import Optional
 
 from database import create_csv, create_table
 from src.scrapers.base import BaseScraper
@@ -56,11 +57,24 @@ if __name__ == "__main__":
         help="Start date in YYYY-MM-DD format (default: 2020-01-01)",
     )
 
+    parser.add_argument(
+        "--update-drug-database",
+        action="store_true",
+        help="Update oncology drug list from NCI.",
+    )
+
     args = parser.parse_args()
 
-    try:
-        start_date = datetime.strptime(args.start_date, "%Y-%m-%d")
-    except ValueError:
-        logger.error("Invalid date format. Use YYYY-MM-DD.")
+    if args.update_drug_database:
+        logger.info("Fetching the latest oncology drugs from NCI.")
+        base = BaseScraper()
+        base.fetch_oncology_drug_names()
 
-    main(start_date)
+    else:
+        try:
+            start_date = datetime.strptime(args.start_date, "%Y-%m-%d")
+        except ValueError:
+            logger.error("Invalid date format. Use YYYY-MM-DD.")
+            exit(1)
+
+        main(start_date)

@@ -11,7 +11,7 @@ from bs4 import BeautifulSoup
 
 from src.models import DrugAlert
 
-from .utils import extract_drug_tokens, normalize_drug_name, read_json
+from .utils import extract_drug_token, normalize_drug_name, read_json
 
 
 class BaseScraper(ABC):
@@ -25,7 +25,6 @@ class BaseScraper(ABC):
         timeout: int = 30,
         start_date: Optional[datetime] = None,
         db_bath: str = "data/recalls.db",
-        source_path: str = "scrapers/sources.json",
         oncology_drugs_path: str = "data/nci_oncology_drugs.json",
     ) -> None:
         """Initialize the scraper with a base URL and optional request args."""
@@ -35,7 +34,7 @@ class BaseScraper(ABC):
         self.timeout = timeout
         self.start_date = start_date
         self.search_url = "https://webapis.oncology.gov/drugdictionary/v1/Drugs/search"
-        self.nci_url = "https://www.oncology.gov/about-oncology/treatment/drugs/oncology-drugs"
+        self.nci_url = "https://www.cancer.gov/about-cancer/treatment/drugs/cancer-drugs"
 
         # Safe default UA
         self.args.setdefault("headers", {})
@@ -46,7 +45,6 @@ class BaseScraper(ABC):
         self.oncology_drugs_path = oncology_drugs_path
         self.oncology_drugs = read_json(self.oncology_drugs_path)
         self.db_path = db_bath
-        self.source_path = source_path
 
     def scrape(self, url: Optional[str] = None) -> Dict[str, Any]:
         """Fetch a URL and return minimal response metadata plus parsed HTML."""
@@ -74,7 +72,6 @@ class BaseScraper(ABC):
         data = r.json()
         return data
 
-    @abstractmethod
     def standardize(self, upload_to_db: bool = False) -> List[DrugAlert]:
         """Standardize the scraper's data into a list of DrugAlert objects."""
 
@@ -118,11 +115,12 @@ class BaseScraper(ABC):
 
         # The page lists drugs as links inside the main content area.
         # We grab all anchor tags that link to individual drug dictionary pages.
-        uls = soup.select("ul.no-bullets.no-description")
+        div = soup.select("div.usa-prose.usa-prose--ncids-full-html")
+        uls = div[0].select("ul.usa-list.usa-list--unstyled")
         for ul in uls:
             for li in ul.select("li"):
                 name = li.get_text(strip=True)
-                drug_names = drug_names + extract_drug_tokens(name)
+                drug_names.append(extract_drug_token(name))
 
         # Remove duplicates while preserving order
         drug_names = list(dict.fromkeys(drug_names))

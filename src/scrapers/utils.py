@@ -67,43 +67,19 @@ def normalize_drug_name(name: str) -> str:
     return name
 
 
-def extract_drug_tokens(text: str) -> list[str]:
+def extract_drug_token(text: str) -> str:
     """Extract drug names from a text."""
 
     if not text:
-        return []
+        return
 
     # Remove parentheses but keep their contents
     cleaned = re.sub(r"[()]", "", text)
 
-    # Split on whitespace
-    tokens = cleaned.split()
+    # Split on whitespace and get the first one
+    token = cleaned.split()[0]
 
-    # remove unwanted tokens like in and for
-    tokens = [token.lower() for token in tokens]
-    tokens = set(tokens) - set(
-        [
-            "and",
-            "a",
-            "acid",
-            "for",
-            "in",
-            "tablets",
-            "tablet",
-            "injection",
-            "injections",
-            "pills",
-            "pill",
-            "sterile",
-            "powder",
-            "implant",
-            "sodium",
-            "calcium",
-            "talc",
-        ]
-    )
-
-    return list(tokens)
+    return token.lower()
 
 
 def read_json(file_path: str) -> dict:

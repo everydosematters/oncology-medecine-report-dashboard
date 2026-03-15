@@ -65,7 +65,7 @@ def test_standardize_mocked(fdausa_scraper, monkeypatch) -> None:
 
     sample_records = [
         {
-            "recall_number": "D-0115-2026",
+            "event_id": "9999",
             "country": "United States",
             "product_description": "Herceptin, 10 mg/4 mL, Mfd by: ProRx, Exton, PA. NDC: 84139",
             "reason_for_recall": "Lack of Assurance of Sterility",
@@ -92,7 +92,7 @@ def test_standardize_mocked(fdausa_scraper, monkeypatch) -> None:
     assert "Lack of Assurance of Sterility" in (r.reason or "")
     assert r.record_id
     assert len(r.record_id) > 10
-    assert "D-0115-2026" in (r.source_url or "")
+    assert "9999" in (r.source_url or "")
 
 
 def test_standardize_skips_non_oncology_drugs(fdausa_scraper, monkeypatch) -> None:

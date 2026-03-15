@@ -9,7 +9,7 @@ on:
       - "main" 
     
   schedule:
-    - cron: "0 6 * * 0" # Sundays 06:00 UTC
+    - cron: "0 6 * * 0" # Sundays
   workflow_dispatch: {}
 
 permissions:
@@ -28,6 +28,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ github.head_ref || github.ref_name }}
 
       - name: Set up Python
         uses: actions/setup-python@v5
